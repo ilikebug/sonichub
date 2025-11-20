@@ -71,7 +71,7 @@ class SpotifyService {
         try {
             await this.ensureInitialized();
 
-            const results = await this.api!.search(query, ['track'], undefined, limit, offset);
+            const results = await this.api!.search(query, ['track'], undefined, Math.min(limit, 50) as any, offset);
 
             if (!results.tracks?.items) {
                 return [];
@@ -95,7 +95,7 @@ class SpotifyService {
             const trendingQueries = ['trending 2024', 'top hits', 'new music', 'popular now'];
             const randomQuery = trendingQueries[Math.floor(Math.random() * trendingQueries.length)];
 
-            const results = await this.api!.search(randomQuery, ['track'], undefined, limit, offset);
+            const results = await this.api!.search(randomQuery, ['track'], undefined, Math.min(limit, 50) as any, offset);
 
             if (!results.tracks?.items) {
                 return [];
@@ -119,7 +119,7 @@ class SpotifyService {
             const genres = ['lo-fi', 'jazz', 'rock', 'electronic', 'pop', 'indie', 'classical'];
             const randomGenre = genres[Math.floor(Math.random() * genres.length)];
 
-            const results = await this.api!.search(`${randomGenre} music`, ['track'], undefined, limit, offset);
+            const results = await this.api!.search(`${randomGenre} music`, ['track'], undefined, Math.min(limit, 50) as any, offset);
 
             if (!results.tracks?.items) {
                 return [];
@@ -143,7 +143,7 @@ class SpotifyService {
             const artists = ['Taylor Swift', 'The Weeknd', 'Ed Sheeran', 'Billie Eilish', 'Drake'];
             const randomArtist = artists[Math.floor(Math.random() * artists.length)];
 
-            const results = await this.api!.search(randomArtist, ['track'], undefined, limit, offset);
+            const results = await this.api!.search(randomArtist, ['track'], undefined, Math.min(limit, 50) as any, offset);
 
             if (!results.tracks?.items) {
                 return [];
