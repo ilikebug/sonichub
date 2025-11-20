@@ -36,14 +36,17 @@ class SpotifyService {
 
     private async initialize() {
         try {
-            const clientId = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
-            const clientSecret = process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET;
+            // 优先使用运行时环境变量（不带 NEXT_PUBLIC_ 前缀），然后再尝试构建时变量
+            const clientId = process.env.SPOTIFY_CLIENT_ID || process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_ID;
+            const clientSecret = process.env.SPOTIFY_CLIENT_SECRET || process.env.NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET;
 
             if (!clientId || !clientSecret) {
                 console.error('Spotify credentials not found in environment variables');
+                console.error('Please set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET');
                 return;
             }
 
+            console.log('✅ Spotify credentials found, initializing API...');
             this.api = SpotifyApi.withClientCredentials(clientId, clientSecret);
         } catch (error) {
             console.error('Failed to initialize Spotify API:', error);

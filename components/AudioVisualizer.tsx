@@ -17,7 +17,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [dataArray, setDataArray] = useState<Uint8Array | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
 
   // 初始化 Web Audio API
   useEffect(() => {
