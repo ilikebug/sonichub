@@ -248,9 +248,6 @@ export default function Home() {
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                     <span className="text-xs font-medium text-gray-300">Online</span>
                 </div>
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white cursor-pointer shadow-lg shadow-purple-500/20">
-                    AI
-                </div>
             </div>
         </header>
 

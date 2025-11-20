@@ -67,18 +67,45 @@ export async function GET(request: NextRequest) {
       return serveAudioFile(cachedFile, request);
     }
 
-    // 缓存不存在，下载音频
+    // 缓存不存在，下载音频（多客户端重试策略）
     console.log('📥 Downloading audio...');
     
-    // 直接下载最佳音频格式，优先浏览器支持好的格式，不做转换（不需要 ffmpeg）
     const outputTemplate = path.join(CACHE_DIR, `${videoId}.%(ext)s`);
-    const downloadCmd = `yt-dlp "https://www.youtube.com/watch?v=${videoId}" -f "bestaudio[ext=m4a]/bestaudio[ext=mp4]/bestaudio[ext=webm]/bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`;
     
-    await execAsync(downloadCmd, {
-      timeout: 60000, // 60秒超时
-      maxBuffer: 1024 * 1024 * 50, // 50MB buffer
-      killSignal: 'SIGTERM'
-    });
+    // 尝试不同的客户端和格式组合
+    const strategies = [
+      {
+        name: 'Android',
+        cmd: `yt-dlp "https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=android" -f "18/bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`
+      },
+      {
+        name: 'iOS (fallback)',
+        cmd: `yt-dlp "https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=ios" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`
+      },
+      {
+        name: 'Web (last resort)',
+        cmd: `yt-dlp "https://www.youtube.com/watch?v=${videoId}" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`
+      }
+    ];
+    
+    let lastError = null;
+    
+    for (const strategy of strategies) {
+      try {
+        console.log(`🔄 Trying ${strategy.name} client...`);
+        await execAsync(strategy.cmd, {
+          timeout: 60000,
+          maxBuffer: 1024 * 1024 * 50,
+          killSignal: 'SIGTERM'
+        });
+        console.log(`✅ Success with ${strategy.name} client`);
+        break; // 成功则跳出循环
+      } catch (error: any) {
+        console.log(`❌ ${strategy.name} failed:`, error.message);
+        lastError = error;
+        // 继续尝试下一个策略
+      }
+    }
 
     // 查找下载的文件（检查所有可能的格式）
     for (const ext of possibleExtensions) {
@@ -91,7 +118,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (!cachedFile) {
-      throw new Error('Downloaded file not found');
+      // 所有策略都失败了
+      throw lastError || new Error('All download strategies failed');
     }
 
     return serveAudioFile(cachedFile, request);
