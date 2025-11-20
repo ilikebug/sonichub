@@ -15,6 +15,7 @@ interface PlayerProps {
   onNext: () => void;
   onPrev: () => void;
   onTogglePlayMode: () => void;
+  onOpenQueue?: () => void;
 }
 
 // 本地存储收藏歌曲的工具函数
@@ -65,7 +66,7 @@ function toggleFavorite(song: Song): boolean {
   }
 }
 
-export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode, onPlayPause, onNext, onPrev, onTogglePlayMode }) => {
+export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode, onPlayPause, onNext, onPrev, onTogglePlayMode, onOpenQueue }) => {
   const [mounted, setMounted] = useState(false);
   const [volume, setVolume] = useState(0.7);
   const [progress, setProgress] = useState(0);
@@ -597,7 +598,13 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
           </button>
           
           {/* Desktop: Full volume control */}
-          <Icons.ListMusic size={18} className="hidden lg:block text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer" />
+          <button
+            onClick={onOpenQueue}
+            className="hidden lg:block p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            title="播放队列"
+          >
+            <Icons.ListMusic size={18} />
+          </button>
           <div className="hidden md:flex items-center gap-2 group">
             <button 
               onClick={() => setVolume(prev => prev === 0 ? 0.7 : 0)}

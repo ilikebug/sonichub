@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { Player } from '@/components/Player';
+import { PlayQueue } from '@/components/PlayQueue';
 import { Icons } from '@/components/Icons';
 import { SongCard } from '@/components/SongCard';
 import { SearchHistory } from '@/components/SearchHistory';
@@ -37,6 +38,7 @@ export default function Home() {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isQueueOpen, setIsQueueOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // 本地存储 key
@@ -252,6 +254,33 @@ export default function Home() {
       setIsPlaying(true);
       setToastMessage(`正在播放: ${song.title}`);
     }
+  };
+
+  // Handle Remove Song from Queue
+  const handleRemoveSongFromQueue = (songId: string) => {
+    const updatedSongs = songs.filter(s => s.id !== songId);
+    setSongs(updatedSongs);
+    
+    // 如果删除的是当前播放的歌曲，自动播放下一首
+    if (currentSong?.id === songId) {
+      if (updatedSongs.length > 0) {
+        setCurrentSong(updatedSongs[0]);
+        setIsPlaying(true);
+      } else {
+        setCurrentSong(null);
+        setIsPlaying(false);
+      }
+    }
+    setToastMessage('已从队列中移除');
+  };
+
+  // Handle Clear Queue
+  const handleClearQueue = () => {
+    setSongs([]);
+    setCurrentSong(null);
+    setIsPlaying(false);
+    setIsQueueOpen(false);
+    setToastMessage('队列已清空');
   };
 
   // Handle Next
@@ -473,6 +502,17 @@ export default function Home() {
         onClose={() => setIsMobileSidebarOpen(false)}
       />
 
+      {/* Play Queue */}
+      <PlayQueue
+        songs={songs}
+        currentSong={currentSong}
+        isOpen={isQueueOpen}
+        onClose={() => setIsQueueOpen(false)}
+        onPlaySong={handlePlay}
+        onRemoveSong={handleRemoveSongFromQueue}
+        onClearQueue={handleClearQueue}
+      />
+
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {/* Header / Search Bar */}
         <header className="sticky top-0 z-40 h-20 flex items-center px-4 md:px-8 bg-white/80 dark:bg-[#09090b]/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 gap-3 md:gap-6 transition-colors duration-300">
@@ -590,6 +630,7 @@ export default function Home() {
                 onNext={handleNext}
                 onPrev={handlePrev}
                 onTogglePlayMode={handleTogglePlayMode}
+                onOpenQueue={() => setIsQueueOpen(true)}
             />
         </div>
       </main>
