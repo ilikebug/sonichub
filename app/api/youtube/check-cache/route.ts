@@ -6,11 +6,16 @@ import crypto from 'crypto';
 
 // 获取系统缓存目录
 function getSystemCacheDir(): string {
+  // 优先使用环境变量指定的缓存目录（Docker 环境）
+  if (process.env.SONICHUB_CACHE_DIR) {
+    return process.env.SONICHUB_CACHE_DIR;
+  }
+
   const platform = os.platform();
   const homeDir = os.homedir();
-  
+
   let cacheBase: string;
-  
+
   switch (platform) {
     case 'darwin': // macOS
       cacheBase = path.join(homeDir, 'Library', 'Caches');
@@ -19,9 +24,10 @@ function getSystemCacheDir(): string {
       cacheBase = process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local');
       break;
     default: // Linux and others
+      // 在 Docker 容器中，使用 /tmp 目录
       cacheBase = process.env.XDG_CACHE_HOME || path.join(homeDir, '.cache');
   }
-  
+
   return path.join(cacheBase, 'SonicHub', 'audio');
 }
 
@@ -129,9 +135,9 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('❌ Cache check error:', error.message);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to check cache',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     );

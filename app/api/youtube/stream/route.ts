@@ -10,11 +10,16 @@ const execAsync = promisify(exec);
 
 // 获取系统缓存目录
 function getSystemCacheDir(): string {
+  // 优先使用环境变量指定的缓存目录（Docker 环境）
+  if (process.env.SONICHUB_CACHE_DIR) {
+    return process.env.SONICHUB_CACHE_DIR;
+  }
+
   const platform = os.platform();
   const homeDir = os.homedir();
-  
+
   let cacheBase: string;
-  
+
   switch (platform) {
     case 'darwin': // macOS
       cacheBase = path.join(homeDir, 'Library', 'Caches');
@@ -23,9 +28,10 @@ function getSystemCacheDir(): string {
       cacheBase = process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local');
       break;
     default: // Linux and others
+      // 在 Docker 容器中，使用 /tmp 目录
       cacheBase = process.env.XDG_CACHE_HOME || path.join(homeDir, '.cache');
   }
-  
+
   return path.join(cacheBase, 'SonicHub', 'audio');
 }
 
@@ -53,7 +59,7 @@ export async function GET(request: NextRequest) {
     // 检查缓存文件（支持所有浏览器兼容的音频格式）
     const possibleExtensions = ['mp4', 'm4a', 'webm', 'opus', 'mp3', 'ogg', 'wav', 'aac'];
     let cachedFile = '';
-    
+
     for (const ext of possibleExtensions) {
       const filePath = path.join(CACHE_DIR, `${videoId}.${ext}`);
       if (fs.existsSync(filePath)) {
@@ -62,16 +68,16 @@ export async function GET(request: NextRequest) {
         break;
       }
     }
-    
+
     if (cachedFile) {
       return serveAudioFile(cachedFile, request);
     }
 
     // 缓存不存在，下载音频（多客户端重试策略）
     console.log('📥 Downloading audio...');
-    
+
     const outputTemplate = path.join(CACHE_DIR, `${videoId}.%(ext)s`);
-    
+
     // 尝试不同的客户端和格式组合
     const strategies = [
       {
@@ -87,9 +93,9 @@ export async function GET(request: NextRequest) {
         cmd: `yt-dlp "https://www.youtube.com/watch?v=${videoId}" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`
       }
     ];
-    
+
     let lastError = null;
-    
+
     for (const strategy of strategies) {
       try {
         console.log(`🔄 Trying ${strategy.name} client...`);
@@ -126,16 +132,16 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('❌ Stream error:', error.message);
-    
+
     // 如果是超时错误
     if (error.killed || error.signal === 'SIGTERM') {
       return NextResponse.json({ error: 'Download timeout' }, { status: 408 });
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to process audio',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     );

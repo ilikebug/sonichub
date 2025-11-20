@@ -36,11 +36,13 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     ffmpeg \
-    && pip3 install --no-cache-dir yt-dlp --break-system-packages
+    && pip3 install --no-cache-dir --break-system-packages yt-dlp \
+    && yt-dlp --version
 
 # 设置环境变量
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV SONICHUB_CACHE_DIR=/tmp/sonichub-cache
 
 # 创建非 root 用户
 RUN addgroup --system --gid 1001 nodejs
@@ -53,6 +55,10 @@ COPY --from=builder /app/public ./public
 # 复制构建产物
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# 创建缓存目录并设置权限
+RUN mkdir -p /tmp/sonichub-cache && \
+    chown -R nextjs:nodejs /tmp/sonichub-cache
 
 # 切换到非 root 用户
 USER nextjs
