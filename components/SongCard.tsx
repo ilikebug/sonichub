@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Song, MusicPlatform } from '../types';
+import { Song } from '../types';
 import { Icons } from './Icons';
 
 interface SongCardProps {
@@ -14,17 +14,6 @@ interface SongCardProps {
 }
 
 export const SongCard: React.FC<SongCardProps> = ({ song, onPlay, onDownload, onToggleLike, isActive, isLiked }) => {
-  
-  const getPlatformColor = (p: MusicPlatform) => {
-    switch(p) {
-        case MusicPlatform.Spotify: return 'text-green-400 bg-green-400/10';
-        case MusicPlatform.YouTube: return 'text-red-400 bg-red-400/10';
-        case MusicPlatform.Bilibili: return 'text-pink-400 bg-pink-400/10';
-        case MusicPlatform.QQMusic: return 'text-yellow-400 bg-yellow-400/10';
-        case MusicPlatform.NetEase: return 'text-red-600 bg-red-600/10';
-        default: return 'text-gray-400';
-    }
-  };
 
   return (
     <div className={`group relative p-3 rounded-xl transition-all duration-300 hover:bg-white/5 ${isActive ? 'bg-white/10' : ''}`}>
@@ -42,10 +31,6 @@ export const SongCard: React.FC<SongCardProps> = ({ song, onPlay, onDownload, on
           >
             <Icons.Play size={20} className="text-white fill-current ml-1" />
           </button>
-        </div>
-        {/* Platform Badge */}
-        <div className={`absolute top-2 right-2 px-2 py-0.5 rounded text-[10px] font-bold backdrop-blur-md ${getPlatformColor(song.platform)}`}>
-            {song.platform}
         </div>
         {/* Like Button */}
         <button 

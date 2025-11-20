@@ -329,9 +329,8 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
             setLoadError('音频加载失败');
           }}
           onEnded={() => {
-              console.log('🔚 Audio ended');
-              // Auto-next behavior could be triggered here
-              // onNext(); 
+              console.log('🔚 Audio ended, playing next...');
+              onNext();
           }}
         />
 

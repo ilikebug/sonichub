@@ -146,6 +146,36 @@ export default function Home() {
     }
   };
 
+  // Handle Next
+  const handleNext = () => {
+    if (songs.length === 0) return;
+    
+    const currentIndex = songs.findIndex(s => s.id === currentSong?.id);
+    const nextIndex = (currentIndex + 1) % songs.length;
+    const nextSong = songs[nextIndex];
+    
+    if (nextSong) {
+      setCurrentSong(nextSong);
+      setIsPlaying(true);
+      setToastMessage(`正在播放: ${nextSong.title}`);
+    }
+  };
+
+  // Handle Previous
+  const handlePrev = () => {
+    if (songs.length === 0) return;
+    
+    const currentIndex = songs.findIndex(s => s.id === currentSong?.id);
+    const prevIndex = currentIndex <= 0 ? songs.length - 1 : currentIndex - 1;
+    const prevSong = songs[prevIndex];
+    
+    if (prevSong) {
+      setCurrentSong(prevSong);
+      setIsPlaying(true);
+      setToastMessage(`正在播放: ${prevSong.title}`);
+    }
+  };
+
   // Handle Like
   const handleToggleLike = (song: Song) => {
     const favorites = loadFavorites();
@@ -317,8 +347,8 @@ export default function Home() {
                 currentSong={currentSong} 
                 isPlaying={isPlaying}
                 onPlayPause={() => setIsPlaying(!isPlaying)}
-                onNext={() => {}}
-                onPrev={() => {}}
+                onNext={handleNext}
+                onPrev={handlePrev}
             />
         </div>
       </main>
