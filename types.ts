@@ -8,6 +8,8 @@ export enum MusicPlatform {
 
 export type ViewType = 'search' | 'explore' | 'radio' | 'artists' | 'favorites' | 'albums' | 'downloads';
 
+export type PlayMode = 'sequential' | 'loop' | 'loop-one' | 'shuffle';
+
 export interface Song {
   id: string;
   title: string;

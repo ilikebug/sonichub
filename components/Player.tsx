@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Song } from '../types';
+import { Song, PlayMode } from '../types';
 import { Icons } from './Icons';
 import { spotifyService } from '@/services/spotifyService';
 import { audioEvents } from '@/lib/audioEvents';
@@ -9,9 +9,11 @@ import { audioEvents } from '@/lib/audioEvents';
 interface PlayerProps {
   currentSong: Song | null;
   isPlaying: boolean;
+  playMode: PlayMode;
   onPlayPause: () => void;
   onNext: () => void;
   onPrev: () => void;
+  onTogglePlayMode: () => void;
 }
 
 // 本地存储收藏歌曲的工具函数
@@ -62,7 +64,7 @@ function toggleFavorite(song: Song): boolean {
   }
 }
 
-export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPause, onNext, onPrev }) => {
+export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode, onPlayPause, onNext, onPrev, onTogglePlayMode }) => {
   const [mounted, setMounted] = useState(false);
   const [volume, setVolume] = useState(0.7);
   const [progress, setProgress] = useState(0);
@@ -76,8 +78,12 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
   const [isBuffering, setIsBuffering] = useState(false);
   const [shouldAutoPlay, setShouldAutoPlay] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isDraggingProgress, setIsDraggingProgress] = useState(false);
+  const [isDraggingVolume, setIsDraggingVolume] = useState(false);
   
   const audioRef = useRef<HTMLAudioElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const volumeBarRef = useRef<HTMLDivElement>(null);
 
   // 检查当前歌曲是否收藏
   useEffect(() => {
@@ -108,6 +114,21 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
   useEffect(() => {
     if (!mounted) return;
     
+    // 如果没有歌曲，重置所有状态
+    if (!currentSong) {
+      setActualAudioUrl('');
+      setCurrentTime(0);
+      setDuration(0);
+      setProgress(0);
+      setIsLoadingAudio(false);
+      setLoadError('');
+      setIsPreviewMode(false);
+      setIsBuffering(false);
+      setShouldAutoPlay(false);
+      setRetryStatus('');
+      return;
+    }
+    
     if (currentSong && !currentSong.audioUrl) {
       setIsLoadingAudio(true);
       setActualAudioUrl(''); // 清空旧的 URL
@@ -116,6 +137,10 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
       setIsBuffering(false);
       setShouldAutoPlay(false);
       setRetryStatus('正在获取音频...');
+      // 重置时间状态
+      setCurrentTime(0);
+      setDuration(0);
+      setProgress(0);
       
       spotifyService.getAudioUrl(currentSong)
         .then(result => {
@@ -153,6 +178,10 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
       setIsBuffering(false);
       setShouldAutoPlay(false);
       setRetryStatus('');
+      // 重置时间状态
+      setCurrentTime(0);
+      setDuration(0);
+      setProgress(0);
     }
   }, [currentSong, mounted]);
 
@@ -228,8 +257,82 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
     setProgress(percentage * 100);
   };
 
+  // 拖动进度条
+  const handleProgressMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDraggingProgress(true);
+    handleSeek(e);
+  };
+
+  const handleProgressMouseMove = (e: MouseEvent) => {
+    if (!isDraggingProgress || !progressBarRef.current || !audioRef.current || !duration) return;
+    
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = Math.min(Math.max(x / rect.width, 0), 1);
+    
+    audioRef.current.currentTime = percentage * duration;
+    setProgress(percentage * 100);
+  };
+
+  const handleProgressMouseUp = () => {
+    setIsDraggingProgress(false);
+  };
+
+  // 监听全局鼠标事件以支持拖动进度条
+  useEffect(() => {
+    if (isDraggingProgress) {
+      window.addEventListener('mousemove', handleProgressMouseMove);
+      window.addEventListener('mouseup', handleProgressMouseUp);
+      
+      return () => {
+        window.removeEventListener('mousemove', handleProgressMouseMove);
+        window.removeEventListener('mouseup', handleProgressMouseUp);
+      };
+    }
+  }, [isDraggingProgress, duration]);
+
+  // 拖动音量滑块
+  const handleVolumeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDraggingVolume(true);
+    handleVolumeClick(e);
+  };
+
+  const handleVolumeClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!volumeBarRef.current) return;
+    const rect = volumeBarRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const newVolume = Math.min(Math.max(x / rect.width, 0), 1);
+    setVolume(newVolume);
+  };
+
+  const handleVolumeMouseMove = (e: MouseEvent) => {
+    if (!isDraggingVolume || !volumeBarRef.current) return;
+    
+    const rect = volumeBarRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const newVolume = Math.min(Math.max(x / rect.width, 0), 1);
+    setVolume(newVolume);
+  };
+
+  const handleVolumeMouseUp = () => {
+    setIsDraggingVolume(false);
+  };
+
+  // 监听全局鼠标事件以支持拖动音量滑块
+  useEffect(() => {
+    if (isDraggingVolume) {
+      window.addEventListener('mousemove', handleVolumeMouseMove);
+      window.addEventListener('mouseup', handleVolumeMouseUp);
+      
+      return () => {
+        window.removeEventListener('mousemove', handleVolumeMouseMove);
+        window.removeEventListener('mouseup', handleVolumeMouseUp);
+      };
+    }
+  }, [isDraggingVolume]);
+
   const formatTime = (seconds: number) => {
-    if (!seconds || isNaN(seconds)) return "0:00";
+    if (isNaN(seconds) || seconds < 0) return "0:00";
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${s.toString().padStart(2, '0')}`;
@@ -370,6 +473,23 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
       {/* Controls */}
       <div className="flex flex-col items-center w-1/3 gap-2">
         <div className="flex items-center gap-6">
+          {/* Play Mode Button */}
+          <button 
+            onClick={onTogglePlayMode} 
+            className="text-gray-400 hover:text-white transition-colors"
+            title={
+              playMode === 'loop' ? '列表循环' : 
+              playMode === 'loop-one' ? '单曲循环' : 
+              playMode === 'shuffle' ? '随机播放' : 
+              '顺序播放'
+            }
+          >
+            {playMode === 'loop' && <Icons.Repeat size={18} />}
+            {playMode === 'loop-one' && <Icons.Repeat1 size={18} />}
+            {playMode === 'shuffle' && <Icons.Shuffle size={18} />}
+            {playMode === 'sequential' && <Icons.List size={18} />}
+          </button>
+          
           <button onClick={onPrev} className="text-gray-400 hover:text-white transition-colors">
             <Icons.SkipBack size={20} />
           </button>
@@ -393,7 +513,9 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
           
           {/* Interactive Progress Bar */}
           <div 
+            ref={progressBarRef}
             className="flex-1 h-1 bg-gray-800 rounded-full overflow-hidden cursor-pointer group py-1 relative"
+            onMouseDown={handleProgressMouseDown}
             onClick={handleSeek}
           >
             <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center">
@@ -401,7 +523,10 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
                     <div 
                     className="h-full bg-white group-hover:bg-purple-400 relative transition-all duration-100"
                     style={{ width: `${progress}%` }}
-                    ></div>
+                    >
+                      {/* 拖动手柄 */}
+                      <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg ${isDraggingProgress ? 'scale-125' : 'scale-0 group-hover:scale-100'} transition-transform`}></div>
+                    </div>
                 </div>
             </div>
           </div>
@@ -419,18 +544,19 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, onPlayPa
              {volume === 0 ? <Icons.Disc size={20} className="text-gray-500"/> : <Icons.Volume2 size={20} className="text-gray-400" />}
           </button>
           <div 
+            ref={volumeBarRef}
             className="w-24 h-1 bg-gray-800 rounded-full overflow-hidden cursor-pointer relative py-2"
-            onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                setVolume(Math.min(Math.max(x / rect.width, 0), 1));
-            }}
+            onMouseDown={handleVolumeMouseDown}
+            onClick={handleVolumeClick}
           >
              <div className="absolute top-1.5 left-0 w-full h-1 bg-gray-800 rounded-full">
                  <div 
-                    className="h-full bg-gray-500 group-hover:bg-white" 
+                    className="h-full bg-gray-500 group-hover:bg-white relative" 
                     style={{ width: `${volume * 100}%` }}
-                 ></div>
+                 >
+                   {/* 音量拖动手柄 */}
+                   <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg ${isDraggingVolume ? 'scale-125' : 'scale-0 group-hover:scale-100'} transition-transform`}></div>
+                 </div>
              </div>
           </div>
         </div>

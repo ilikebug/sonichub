@@ -5,7 +5,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { Player } from '@/components/Player';
 import { Icons } from '@/components/Icons';
 import { SongCard } from '@/components/SongCard';
-import { Song, ViewType } from '@/types';
+import { Song, ViewType, PlayMode } from '@/types';
 import { spotifyService } from '@/services/spotifyService';
 
 // Toast helper component within App
@@ -30,9 +30,12 @@ export default function Home() {
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [playMode, setPlayMode] = useState<PlayMode>('loop'); // 默认列表循环
 
   // 本地存储 key
   const FAVORITES_KEY = 'sonichub_favorites';
+  const DOWNLOADS_KEY = 'sonichub_downloads';
+  const PLAY_MODE_KEY = 'sonichub_playmode';
 
   // 从 localStorage 加载收藏
   const loadFavorites = () => {
@@ -50,6 +53,26 @@ export default function Home() {
     setMounted(true);
     // 加载收藏列表
     setLikedSongs(loadFavorites());
+
+    // 从本地存储加载下载历史
+    try {
+      const storedDownloads = localStorage.getItem(DOWNLOADS_KEY);
+      if (storedDownloads) {
+        setDownloadedSongs(JSON.parse(storedDownloads));
+      }
+    } catch (error) {
+      console.error('Failed to load downloads:', error);
+    }
+
+    // 从本地存储加载播放模式
+    try {
+      const storedPlayMode = localStorage.getItem(PLAY_MODE_KEY);
+      if (storedPlayMode) {
+        setPlayMode(storedPlayMode as PlayMode);
+      }
+    } catch (error) {
+      console.error('Failed to load play mode:', error);
+    }
 
     // 监听 storage 事件，当 Player 组件改变收藏时同步更新
     const handleStorageChange = () => {
@@ -150,9 +173,36 @@ export default function Home() {
   const handleNext = () => {
     if (songs.length === 0) return;
     
+    // 单曲循环模式，重新播放当前歌曲
+    if (playMode === 'loop-one' && currentSong) {
+      setCurrentSong({ ...currentSong }); // 触发重新加载
+      setIsPlaying(true);
+      return;
+    }
+    
     const currentIndex = songs.findIndex(s => s.id === currentSong?.id);
-    const nextIndex = (currentIndex + 1) % songs.length;
-    const nextSong = songs[nextIndex];
+    let nextSong: Song | null = null;
+    
+    if (playMode === 'shuffle') {
+      // 随机播放：随机选一首不是当前歌曲的
+      const availableSongs = songs.filter(s => s.id !== currentSong?.id);
+      if (availableSongs.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availableSongs.length);
+        nextSong = availableSongs[randomIndex];
+      }
+    } else if (playMode === 'loop') {
+      // 列表循环：到末尾后回到第一首
+      const nextIndex = (currentIndex + 1) % songs.length;
+      nextSong = songs[nextIndex];
+    } else {
+      // 顺序播放：到末尾就停止
+      if (currentIndex < songs.length - 1) {
+        nextSong = songs[currentIndex + 1];
+      } else {
+        setIsPlaying(false);
+        return;
+      }
+    }
     
     if (nextSong) {
       setCurrentSong(nextSong);
@@ -165,15 +215,61 @@ export default function Home() {
   const handlePrev = () => {
     if (songs.length === 0) return;
     
+    // 单曲循环模式，重新播放当前歌曲
+    if (playMode === 'loop-one' && currentSong) {
+      setCurrentSong({ ...currentSong }); // 触发重新加载
+      setIsPlaying(true);
+      return;
+    }
+    
     const currentIndex = songs.findIndex(s => s.id === currentSong?.id);
-    const prevIndex = currentIndex <= 0 ? songs.length - 1 : currentIndex - 1;
-    const prevSong = songs[prevIndex];
+    let prevSong: Song | null = null;
+    
+    if (playMode === 'shuffle') {
+      // 随机播放：随机选一首不是当前歌曲的
+      const availableSongs = songs.filter(s => s.id !== currentSong?.id);
+      if (availableSongs.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availableSongs.length);
+        prevSong = availableSongs[randomIndex];
+      }
+    } else if (playMode === 'loop') {
+      // 列表循环：到开头后回到最后一首
+      const prevIndex = currentIndex <= 0 ? songs.length - 1 : currentIndex - 1;
+      prevSong = songs[prevIndex];
+    } else {
+      // 顺序播放：到开头就停止
+      if (currentIndex > 0) {
+        prevSong = songs[currentIndex - 1];
+      } else {
+        setIsPlaying(false);
+        return;
+      }
+    }
     
     if (prevSong) {
       setCurrentSong(prevSong);
       setIsPlaying(true);
       setToastMessage(`正在播放: ${prevSong.title}`);
     }
+  };
+
+  // Toggle Play Mode
+  const handleTogglePlayMode = () => {
+    const modes: PlayMode[] = ['loop', 'loop-one', 'shuffle', 'sequential'];
+    const currentModeIndex = modes.indexOf(playMode);
+    const nextMode = modes[(currentModeIndex + 1) % modes.length];
+    setPlayMode(nextMode);
+    
+    const modeNames = {
+      'loop': '列表循环',
+      'loop-one': '单曲循环',
+      'shuffle': '随机播放',
+      'sequential': '顺序播放'
+    };
+    setToastMessage(`播放模式: ${modeNames[nextMode]}`);
+    
+    // 保存到 localStorage
+    localStorage.setItem(PLAY_MODE_KEY, nextMode);
   };
 
   // Handle Like
@@ -201,17 +297,50 @@ export default function Home() {
 
   // Handle Download
   const handleDownload = async (song: Song) => {
-    setToastMessage(`Resolving download link for ${song.title}...`);
-    
-    // Simulate processing delay
-    setTimeout(async () => {
-        const status = await spotifyService.checkAvailability(song);
-        // Check if already downloaded
-        if (!downloadedSongs.some(s => s.id === song.id)) {
-            setDownloadedSongs(prev => [song, ...prev]);
-        }
-        setToastMessage(`Download started: ${status}`);
-    }, 1000);
+    setToastMessage(`正在准备下载: ${song.title}`);
+
+    try {
+      // 1. 先获取 videoId（如果还没有搜索过）
+      const result = await spotifyService.getAudioUrl(song);
+
+      if (!result.url) {
+        setToastMessage('下载失败：无法获取音频链接');
+        return;
+      }
+
+      // 2. 从 URL 中提取 videoId
+      const videoIdMatch = result.url.match(/videoId=([^&]+)/);
+      if (!videoIdMatch) {
+        setToastMessage('下载失败：无法解析视频ID');
+        return;
+      }
+
+      const videoId = videoIdMatch[1];
+      const filename = `${song.artist} - ${song.title}`;
+
+      // 3. 使用下载 API
+      const downloadUrl = `/api/youtube/download?videoId=${videoId}&filename=${encodeURIComponent(filename)}`;
+
+      // 4. 创建隐藏的 a 标签触发下载
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // 5. 添加到已下载列表并保存到 localStorage
+      if (!downloadedSongs.some(s => s.id === song.id)) {
+        const updatedDownloads = [song, ...downloadedSongs];
+        setDownloadedSongs(updatedDownloads);
+        localStorage.setItem(DOWNLOADS_KEY, JSON.stringify(updatedDownloads));
+      }
+
+      setToastMessage(`开始下载: ${song.title}`);
+    } catch (error) {
+      console.error('Download error:', error);
+      setToastMessage('下载失败，请稍后重试');
+    }
   };
 
   // Auto-hide toast
@@ -346,9 +475,11 @@ export default function Home() {
             <Player 
                 currentSong={currentSong} 
                 isPlaying={isPlaying}
+                playMode={playMode}
                 onPlayPause={() => setIsPlaying(!isPlaying)}
                 onNext={handleNext}
                 onPrev={handlePrev}
+                onTogglePlayMode={handleTogglePlayMode}
             />
         </div>
       </main>
