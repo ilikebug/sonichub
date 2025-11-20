@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { MobileSidebar } from '@/components/MobileSidebar';
 import { Player } from '@/components/Player';
 import { PlayQueue } from '@/components/PlayQueue';
+import { Pagination } from '@/components/Pagination';
 import { Icons } from '@/components/Icons';
 import { SongCard } from '@/components/SongCard';
 import { SearchHistory } from '@/components/SearchHistory';
@@ -39,7 +40,11 @@ export default function Home() {
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  
+  const ITEMS_PER_PAGE = 20;
 
   // 本地存储 key
   const FAVORITES_KEY = 'sonichub_favorites';
@@ -167,39 +172,46 @@ export default function Home() {
   }, [showSearchHistory]);
 
   // Handle View Switching
-  const handleViewChange = async (newView: ViewType) => {
+  const handleViewChange = async (newView: ViewType, page: number = 1) => {
     setCurrentView(newView);
     setQuery(''); // Clear search when switching tabs
+    setCurrentPage(page);
 
     if (newView === 'favorites') {
       setSongs(likedSongs);
+      setTotalPages(Math.ceil(likedSongs.length / ITEMS_PER_PAGE));
       return;
     }
     
     if (newView === 'downloads') {
       setSongs(downloadedSongs);
+      setTotalPages(Math.ceil(downloadedSongs.length / ITEMS_PER_PAGE));
       return;
     }
 
     if (newView === 'albums') {
         setSongs([]); // Placeholder
+        setTotalPages(1);
         return;
     }
 
-    // Fetch content from Gemini for discovery views
+    // Fetch content from Spotify for discovery views
     if (['explore', 'radio', 'artists'].includes(newView)) {
       setIsLoading(true);
       try {
+        const offset = (page - 1) * ITEMS_PER_PAGE;
         // Call appropriate Spotify service method based on view
         let results: Song[] = [];
         if (newView === 'explore') {
-          results = await spotifyService.getNewReleases();
+          results = await spotifyService.getNewReleases(ITEMS_PER_PAGE, offset);
         } else if (newView === 'radio') {
-          results = await spotifyService.getRecommendations();
+          results = await spotifyService.getRecommendations(ITEMS_PER_PAGE, offset);
         } else if (newView === 'artists') {
-          results = await spotifyService.getFeaturedPlaylists();
+          results = await spotifyService.getFeaturedPlaylists(ITEMS_PER_PAGE, offset);
         }
         setSongs(results || []);
+        // Spotify API 通常有限制，我们假设最多5页
+        setTotalPages(5);
       } catch (error) {
         console.error(error);
         setToastMessage("Could not load content.");
@@ -218,13 +230,15 @@ export default function Home() {
   }, [mounted]);
 
   // Handle search
-  const handleSearch = async (e?: React.FormEvent, searchQuery?: string) => {
+  const handleSearch = async (e?: React.FormEvent, searchQuery?: string, page: number = 1) => {
     e?.preventDefault();
     const queryToSearch = searchQuery || query;
     if (!queryToSearch.trim()) return;
 
     // 添加到搜索历史
-    addSearchHistory(queryToSearch);
+    if (page === 1) {
+      addSearchHistory(queryToSearch);
+    }
     setShowSearchHistory(false);
 
     // 如果是从历史记录中选择的，更新输入框
@@ -233,10 +247,14 @@ export default function Home() {
     }
 
     setCurrentView('search');
+    setCurrentPage(page);
     setIsLoading(true);
     try {
-      const results = await spotifyService.searchMusic(queryToSearch);
+      const offset = (page - 1) * ITEMS_PER_PAGE;
+      const results = await spotifyService.searchMusic(queryToSearch, ITEMS_PER_PAGE, offset);
       setSongs(results);
+      // Spotify 搜索结果通常很多，假设最多10页
+      setTotalPages(10);
     } catch (error) {
       console.error(error);
       setToastMessage("Search failed. Check API Key or connection.");
@@ -281,6 +299,24 @@ export default function Home() {
     setIsPlaying(false);
     setIsQueueOpen(false);
     setToastMessage('队列已清空');
+  };
+
+  // Handle Page Change
+  const handlePageChange = (newPage: number) => {
+    if (newPage === currentPage || newPage < 1 || newPage > totalPages) return;
+    
+    // 滚动到顶部
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    // 根据当前视图重新加载数据
+    if (currentView === 'search') {
+      handleSearch(undefined, query, newPage);
+    } else if (['explore', 'radio', 'artists'].includes(currentView)) {
+      handleViewChange(currentView, newPage);
+    } else {
+      // 对于本地数据（收藏、下载），只需要更新页码
+      setCurrentPage(newPage);
+    }
   };
 
   // Handle Next
@@ -604,19 +640,36 @@ export default function Home() {
 
             {/* Results Grid */}
             {!isLoading && songs.length > 0 && (
+                <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6">
-                    {songs.map(song => (
-                        <SongCard 
-                            key={song.id} 
-                            song={song} 
-                            isActive={currentSong?.id === song.id}
-                            isLiked={likedSongs.some(s => s.id === song.id)}
-                            onPlay={handlePlay}
-                            onDownload={handleDownload}
-                            onToggleLike={handleToggleLike}
-                        />
-                    ))}
+                    {(() => {
+                        // 对于本地数据（收藏、下载）进行客户端分页
+                        const displaySongs = ['favorites', 'downloads'].includes(currentView)
+                            ? songs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+                            : songs;
+                        
+                        return displaySongs.map(song => (
+                            <SongCard 
+                                key={song.id} 
+                                song={song} 
+                                isActive={currentSong?.id === song.id}
+                                isLiked={likedSongs.some(s => s.id === song.id)}
+                                onPlay={handlePlay}
+                                onDownload={handleDownload}
+                                onToggleLike={handleToggleLike}
+                            />
+                        ));
+                    })()}
                 </div>
+                
+                {/* Pagination */}
+                <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                    isLoading={isLoading}
+                />
+                </>
             )}
         </div>
 

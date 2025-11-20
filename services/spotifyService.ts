@@ -65,13 +65,13 @@ class SpotifyService {
     /**
      * Search for music tracks, artists, or albums
      */
-    async searchMusic(query: string): Promise<Song[]> {
+    async searchMusic(query: string, limit: number = 20, offset: number = 0): Promise<Song[]> {
         if (!query.trim()) return [];
 
         try {
             await this.ensureInitialized();
 
-            const results = await this.api!.search(query, ['track'], undefined, 10);
+            const results = await this.api!.search(query, ['track'], undefined, limit, offset);
 
             if (!results.tracks?.items) {
                 return [];
@@ -87,7 +87,7 @@ class SpotifyService {
     /**
    * Get new releases for Explore view
    */
-    async getNewReleases(): Promise<Song[]> {
+    async getNewReleases(limit: number = 20, offset: number = 0): Promise<Song[]> {
         try {
             await this.ensureInitialized();
 
@@ -95,7 +95,7 @@ class SpotifyService {
             const trendingQueries = ['trending 2024', 'top hits', 'new music', 'popular now'];
             const randomQuery = trendingQueries[Math.floor(Math.random() * trendingQueries.length)];
 
-            const results = await this.api!.search(randomQuery, ['track'], undefined, 10);
+            const results = await this.api!.search(randomQuery, ['track'], undefined, limit, offset);
 
             if (!results.tracks?.items) {
                 return [];
@@ -111,7 +111,7 @@ class SpotifyService {
     /**
      * Get recommendations for Radio view
      */
-    async getRecommendations(): Promise<Song[]> {
+    async getRecommendations(limit: number = 20, offset: number = 0): Promise<Song[]> {
         try {
             await this.ensureInitialized();
 
@@ -119,7 +119,7 @@ class SpotifyService {
             const genres = ['lo-fi', 'jazz', 'rock', 'electronic', 'pop', 'indie', 'classical'];
             const randomGenre = genres[Math.floor(Math.random() * genres.length)];
 
-            const results = await this.api!.search(`${randomGenre} music`, ['track'], undefined, 10);
+            const results = await this.api!.search(`${randomGenre} music`, ['track'], undefined, limit, offset);
 
             if (!results.tracks?.items) {
                 return [];
@@ -135,7 +135,7 @@ class SpotifyService {
     /**
      * Get featured content for Artists view
      */
-    async getFeaturedPlaylists(): Promise<Song[]> {
+    async getFeaturedPlaylists(limit: number = 20, offset: number = 0): Promise<Song[]> {
         try {
             await this.ensureInitialized();
 
@@ -143,7 +143,7 @@ class SpotifyService {
             const artists = ['Taylor Swift', 'The Weeknd', 'Ed Sheeran', 'Billie Eilish', 'Drake'];
             const randomArtist = artists[Math.floor(Math.random() * artists.length)];
 
-            const results = await this.api!.search(randomArtist, ['track'], undefined, 10);
+            const results = await this.api!.search(randomArtist, ['track'], undefined, limit, offset);
 
             if (!results.tracks?.items) {
                 return [];
