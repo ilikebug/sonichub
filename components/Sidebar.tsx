@@ -11,12 +11,12 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) => {
   return (
-    <aside className="hidden md:flex w-72 flex-col h-full bg-black/40 border-r border-white/10 pt-6 px-5">
+    <aside className="hidden md:flex w-72 flex-col h-full bg-white dark:bg-black/40 border-r border-gray-200 dark:border-white/10 pt-6 px-5 transition-colors duration-300">
       <div className="flex items-center gap-3 mb-10 px-2">
         <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
           <Icons.Music className="text-white w-5 h-5" />
         </div>
-        <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+        <h1 className="text-2xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
           SonicHub
         </h1>
       </div>
@@ -78,7 +78,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView }) =
 const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick: () => void }) => (
   <button 
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${active ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+      active 
+        ? 'bg-purple-100 dark:bg-white/10 text-purple-600 dark:text-white' 
+        : 'text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+    }`}
   >
     {icon}
     <span className="text-base font-medium">{label}</span>

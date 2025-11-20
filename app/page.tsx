@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from '@/components/Sidebar';
+import { MobileSidebar } from '@/components/MobileSidebar';
 import { Player } from '@/components/Player';
 import { Icons } from '@/components/Icons';
 import { SongCard } from '@/components/SongCard';
+import { SearchHistory } from '@/components/SearchHistory';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Song, ViewType, PlayMode } from '@/types';
 import { spotifyService } from '@/services/spotifyService';
 
@@ -31,11 +34,17 @@ export default function Home() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [playMode, setPlayMode] = useState<PlayMode>('loop'); // 默认列表循环
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [showSearchHistory, setShowSearchHistory] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // 本地存储 key
   const FAVORITES_KEY = 'sonichub_favorites';
   const DOWNLOADS_KEY = 'sonichub_downloads';
   const PLAY_MODE_KEY = 'sonichub_playmode';
+  const SEARCH_HISTORY_KEY = 'sonichub_search_history';
+  const MAX_HISTORY_ITEMS = 10; // 最多保存10条搜索历史
 
   // 从 localStorage 加载收藏
   const loadFavorites = () => {
@@ -46,6 +55,47 @@ export default function Home() {
       console.error('Failed to load favorites:', error);
       return [];
     }
+  };
+
+  // 从 localStorage 加载搜索历史
+  const loadSearchHistory = () => {
+    try {
+      const stored = localStorage.getItem(SEARCH_HISTORY_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch (error) {
+      console.error('Failed to load search history:', error);
+      return [];
+    }
+  };
+
+  // 保存搜索历史到 localStorage
+  const saveSearchHistory = (history: string[]) => {
+    try {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
+    } catch (error) {
+      console.error('Failed to save search history:', error);
+    }
+  };
+
+  // 添加搜索记录
+  const addSearchHistory = (searchQuery: string) => {
+    if (!searchQuery.trim()) return;
+    
+    const history = loadSearchHistory();
+    // 移除重复项
+    const filteredHistory = history.filter((item: string) => item !== searchQuery);
+    // 添加到开头
+    const newHistory = [searchQuery, ...filteredHistory].slice(0, MAX_HISTORY_ITEMS);
+    
+    setSearchHistory(newHistory);
+    saveSearchHistory(newHistory);
+  };
+
+  // 清除搜索历史
+  const clearSearchHistory = () => {
+    setSearchHistory([]);
+    saveSearchHistory([]);
+    setShowSearchHistory(false);
   };
 
   // 确保只在客户端渲染
@@ -74,6 +124,9 @@ export default function Home() {
       console.error('Failed to load play mode:', error);
     }
 
+    // 从本地存储加载搜索历史
+    setSearchHistory(loadSearchHistory());
+
     // 监听 storage 事件，当 Player 组件改变收藏时同步更新
     const handleStorageChange = () => {
       setLikedSongs(loadFavorites());
@@ -88,6 +141,28 @@ export default function Home() {
       window.removeEventListener('favoritesChanged', handleStorageChange);
     };
   }, []);
+
+  // 点击外部关闭搜索历史
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchInputRef.current && !searchInputRef.current.contains(event.target as Node)) {
+        // 检查是否点击在搜索历史弹窗内
+        const target = event.target as HTMLElement;
+        const isSearchHistory = target.closest('[data-search-history]');
+        if (!isSearchHistory) {
+          setShowSearchHistory(false);
+        }
+      }
+    };
+
+    if (showSearchHistory) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchHistory]);
 
   // Handle View Switching
   const handleViewChange = async (newView: ViewType) => {
@@ -141,14 +216,24 @@ export default function Home() {
   }, [mounted]);
 
   // Handle search
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleSearch = async (e?: React.FormEvent, searchQuery?: string) => {
+    e?.preventDefault();
+    const queryToSearch = searchQuery || query;
+    if (!queryToSearch.trim()) return;
+
+    // 添加到搜索历史
+    addSearchHistory(queryToSearch);
+    setShowSearchHistory(false);
+
+    // 如果是从历史记录中选择的，更新输入框
+    if (searchQuery) {
+      setQuery(searchQuery);
+    }
 
     setCurrentView('search');
     setIsLoading(true);
     try {
-      const results = await spotifyService.searchMusic(query);
+      const results = await spotifyService.searchMusic(queryToSearch);
       setSongs(results);
     } catch (error) {
       console.error(error);
@@ -374,49 +459,74 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-gradient-to-br from-[#09090b] to-[#111115]">
+    <div className="flex h-screen w-full overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-[#09090b] dark:to-[#111115] transition-colors duration-300">
       {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
       
+      {/* Desktop Sidebar */}
       <Sidebar currentView={currentView} onChangeView={handleViewChange} />
+      
+      {/* Mobile Sidebar */}
+      <MobileSidebar
+        currentView={currentView}
+        onChangeView={handleViewChange}
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
+      />
 
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {/* Header / Search Bar */}
-        <header className="sticky top-0 z-40 h-20 flex items-center px-8 bg-[#09090b]/80 backdrop-blur-xl border-b border-white/5 gap-6">
+        <header className="sticky top-0 z-40 h-20 flex items-center px-4 md:px-8 bg-white/80 dark:bg-[#09090b]/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 gap-3 md:gap-6 transition-colors duration-300">
             {/* Mobile Menu Button (Hidden on Desktop) */}
-            <button className="md:hidden text-gray-400">
-                <Icons.ListMusic />
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="md:hidden text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+                <Icons.Menu size={24} />
             </button>
 
-            <div className="flex-1 flex justify-center">
-                <div className="w-full max-w-2xl">
+            <div className="flex-1 flex justify-center relative">
+                <div className="w-full max-w-2xl relative">
                     <form onSubmit={handleSearch} className="relative group">
                         <Icons.Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-purple-400 transition-colors" size={20} />
                         <input 
+                            ref={searchInputRef}
                             type="text" 
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
+                            onFocus={() => setShowSearchHistory(true)}
                             placeholder="Search song, artist, or paste URL..."
-                            className="w-full bg-white/5 border border-white/10 rounded-full py-3 pl-12 pr-4 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                            className="w-full bg-gray-100 dark:bg-white/5 border border-gray-300 dark:border-white/10 rounded-full py-3 pl-12 pr-4 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
                         />
                     </form>
+                    
+                    {/* Search History Dropdown */}
+                    {showSearchHistory && (
+                        <SearchHistory
+                            history={searchHistory}
+                            onSelectHistory={(item) => handleSearch(undefined, item)}
+                            onClearHistory={clearSearchHistory}
+                            onClose={() => setShowSearchHistory(false)}
+                        />
+                    )}
                 </div>
             </div>
             
             <div className="ml-auto flex items-center gap-4">
-                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/10">
+                <ThemeToggle />
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-200 dark:bg-white/5 rounded-full border border-gray-300 dark:border-white/10">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span className="text-xs font-medium text-gray-300">Online</span>
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Online</span>
                 </div>
             </div>
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8 pb-32 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 scroll-smooth">
             
             <div className="flex items-center justify-between mb-8">
-                <h2 className="text-2xl font-bold text-white tracking-tight">{getHeaderTitle()}</h2>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{getHeaderTitle()}</h2>
                 {!isLoading && (
-                     <span className="text-xs text-gray-500 bg-white/5 px-3 py-1 rounded-full border border-white/5">
+                     <span className="text-xs text-gray-600 dark:text-gray-500 bg-gray-200 dark:bg-white/5 px-3 py-1 rounded-full border border-gray-300 dark:border-white/5">
                         {songs.length} tracks
                      </span>
                 )}
@@ -441,12 +551,12 @@ export default function Home() {
 
             {/* Loading State */}
             {isLoading && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 animate-pulse">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6 animate-pulse">
                    {[...Array(10)].map((_, i) => (
-                       <div key={i} className="bg-white/5 rounded-xl p-3 h-64">
-                           <div className="bg-white/10 w-full aspect-square rounded-lg mb-3"></div>
-                           <div className="h-4 bg-white/10 rounded w-3/4 mb-2"></div>
-                           <div className="h-3 bg-white/10 rounded w-1/2"></div>
+                       <div key={i} className="bg-gray-200 dark:bg-white/5 rounded-xl p-3 h-64">
+                           <div className="bg-gray-300 dark:bg-white/10 w-full aspect-square rounded-lg mb-3"></div>
+                           <div className="h-4 bg-gray-300 dark:bg-white/10 rounded w-3/4 mb-2"></div>
+                           <div className="h-3 bg-gray-300 dark:bg-white/10 rounded w-1/2"></div>
                        </div>
                    ))}
                 </div>
@@ -454,7 +564,7 @@ export default function Home() {
 
             {/* Results Grid */}
             {!isLoading && songs.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-6">
                     {songs.map(song => (
                         <SongCard 
                             key={song.id} 

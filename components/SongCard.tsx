@@ -16,7 +16,7 @@ interface SongCardProps {
 export const SongCard: React.FC<SongCardProps> = ({ song, onPlay, onDownload, onToggleLike, isActive, isLiked }) => {
 
   return (
-    <div className={`group relative p-3 rounded-xl transition-all duration-300 hover:bg-white/5 ${isActive ? 'bg-white/10' : ''}`}>
+    <div className={`group relative p-3 rounded-xl transition-all duration-300 hover:bg-gray-100 dark:hover:bg-white/5 ${isActive ? 'bg-purple-50 dark:bg-white/10' : ''}`}>
       <div className="relative aspect-square mb-3 overflow-hidden rounded-lg shadow-lg">
         <img 
           src={song.coverUrl} 
@@ -46,17 +46,17 @@ export const SongCard: React.FC<SongCardProps> = ({ song, onPlay, onDownload, on
 
       <div className="flex justify-between items-start">
         <div className="min-w-0 flex-1">
-          <h3 className={`font-semibold text-sm truncate ${isActive ? 'text-purple-400' : 'text-gray-100'}`}>
+          <h3 className={`font-semibold text-sm truncate ${isActive ? 'text-purple-600 dark:text-purple-400' : 'text-gray-900 dark:text-gray-100'}`}>
             {song.title}
           </h3>
-          <p className="text-xs text-gray-500 truncate mt-0.5">{song.artist}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-500 truncate mt-0.5">{song.artist}</p>
         </div>
         <button 
           onClick={(e) => {
              e.stopPropagation();
              onDownload(song);
           }}
-          className="text-gray-500 hover:text-purple-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="text-gray-600 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
           title="Download"
         >
           <Icons.Download size={18} />
