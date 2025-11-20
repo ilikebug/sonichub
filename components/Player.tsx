@@ -387,8 +387,8 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
       )}
       
       {/* 播放器主体 */}
-      <div className="h-20 md:h-24 border-t border-gray-200 dark:border-white/10 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-lg px-4 md:px-8 z-50">
-        <div className="h-full max-w-screen-2xl mx-auto flex items-center justify-between gap-4">
+      <div className="h-20 md:h-24 border-t border-gray-200 dark:border-white/10 bg-white/95 dark:bg-[#09090b]/95 backdrop-blur-lg px-3 sm:px-4 md:px-6 lg:px-8 z-50 safe-bottom">
+        <div className="h-full w-full max-w-screen-2xl mx-auto flex items-center justify-between gap-2 md:gap-3 lg:gap-4">
         {/* Hidden Audio Element */}
         <audio
           ref={audioRef}
@@ -441,15 +441,18 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
         />
 
         {/* Song Info - Left */}
-        <div className="flex items-center gap-3 w-56 md:w-64 lg:w-80 flex-shrink-0">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-shrink w-auto md:w-56 lg:w-72">
+          {/* 封面图 */}
           <img 
             src={currentSong.coverUrl} 
             alt={currentSong.title} 
-            className={`w-14 h-14 md:w-16 md:h-16 rounded-lg object-cover shadow-xl shadow-purple-900/30 ${isPlaying ? 'animate-pulse' : ''}`}
+            className={`w-12 h-12 md:w-14 md:h-14 lg:w-16 lg:h-16 rounded-md object-cover shadow-lg shadow-purple-900/20 flex-shrink-0 ${isPlaying ? 'animate-pulse' : ''}`}
           />
-          <div className="flex flex-col gap-1 min-w-0 flex-1">
-            <div className="flex items-center gap-2 min-w-0">
-              <h4 className="text-gray-900 dark:text-white font-medium truncate text-sm md:text-base">{currentSong.title}</h4>
+          
+          {/* 桌面端：歌曲信息 */}
+          <div className="hidden md:flex flex-col gap-1 min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h4 className="text-gray-900 dark:text-white font-medium truncate text-sm lg:text-base">{currentSong.title}</h4>
               <button 
                 onClick={() => {
                   if (currentSong) {
@@ -458,7 +461,7 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
                     console.log(newFavoriteState ? '❤️ Added to favorites' : '💔 Removed from favorites');
                   }
                 }}
-                className={`flex-shrink-0 transition-all ${
+                className={`flex-shrink-0 transition-all p-0.5 ${
                   isFavorite 
                     ? 'text-pink-500 hover:text-pink-400' 
                     : 'text-gray-400 hover:text-pink-500'
@@ -466,15 +469,15 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
                 title={isFavorite ? '取消收藏' : '收藏'}
               >
                   <Icons.Heart 
-                    size={18} 
-                    className={isFavorite ? 'fill-current' : ''}
+                    size={16} 
+                    className={`lg:w-[18px] lg:h-[18px] ${isFavorite ? 'fill-current' : ''}`}
                   />
               </button>
             </div>
             <div className="flex items-center gap-2">
-              <p className="text-gray-600 dark:text-gray-400 text-xs md:text-sm truncate flex-1">{currentSong.artist}</p>
-              {/* Mini Visualizer - Always show */}
-              <div className="w-20 md:w-24 h-4 md:h-5 flex-shrink-0">
+              <p className="text-gray-600 dark:text-gray-400 text-xs lg:text-sm truncate flex-1">{currentSong.artist}</p>
+              {/* Mini Visualizer */}
+              <div className="hidden lg:block w-16 xl:w-20 h-3 flex-shrink-0">
                 <AudioVisualizer 
                   audioElement={audioRef.current} 
                   isPlaying={isPlaying && !isBuffering && !isLoadingAudio} 
@@ -486,13 +489,13 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
         </div>
 
         {/* Controls - Center */}
-        <div className="flex flex-col items-center gap-2 md:gap-2 flex-1 max-w-2xl">
+        <div className="flex flex-col items-center gap-1 md:gap-2 flex-1 min-w-0 max-w-2xl">
           {/* Control Buttons */}
           <div className="flex items-center justify-center gap-1 md:gap-2">
-            {/* Play Mode Button */}
+            {/* Play Mode Button - 所有屏幕都显示 */}
             <button 
               onClick={onTogglePlayMode} 
-              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-1"
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-1 active:scale-95"
               title={
                 playMode === 'loop' ? '列表循环' : 
                 playMode === 'loop-one' ? '单曲循环' : 
@@ -500,39 +503,49 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
                 '顺序播放'
               }
             >
-              {playMode === 'loop' && <Icons.Repeat size={16} className="md:w-[18px] md:h-[18px]" />}
-              {playMode === 'loop-one' && <Icons.Repeat1 size={16} className="md:w-[18px] md:h-[18px]" />}
-              {playMode === 'shuffle' && <Icons.Shuffle size={16} className="md:w-[18px] md:h-[18px]" />}
-              {playMode === 'sequential' && <Icons.List size={16} className="md:w-[18px] md:h-[18px]" />}
+              {playMode === 'loop' && <Icons.Repeat size={18} className="md:w-5 md:h-5" />}
+              {playMode === 'loop-one' && <Icons.Repeat1 size={18} className="md:w-5 md:h-5" />}
+              {playMode === 'shuffle' && <Icons.Shuffle size={18} className="md:w-5 md:h-5" />}
+              {playMode === 'sequential' && <Icons.List size={18} className="md:w-5 md:h-5" />}
             </button>
             
-            <button onClick={onPrev} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-1">
-              <Icons.SkipBack size={18} className="md:w-5 md:h-5" />
+            <button onClick={onPrev} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-1 active:scale-95">
+              <Icons.SkipBack size={20} className="md:w-5 md:h-5" />
             </button>
             <button 
               onClick={onPlayPause}
-              className="w-9 h-9 md:w-10 md:h-10 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-purple-500/20 mx-2"
+              className="w-10 h-10 md:w-11 md:h-11 bg-gray-900 dark:bg-white rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-lg shadow-purple-500/20 mx-1 md:mx-2"
             >
               {isPlaying ? (
-                <Icons.Pause size={16} className="text-white dark:text-black fill-current md:w-[18px] md:h-[18px]" />
+                <Icons.Pause size={20} className="text-white dark:text-black fill-current" />
               ) : (
-                <Icons.Play size={16} className="text-white dark:text-black fill-current ml-0.5 md:w-[18px] md:h-[18px]" />
+                <Icons.Play size={20} className="text-white dark:text-black fill-current ml-0.5" />
               )}
             </button>
-            <button onClick={onNext} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-1">
-              <Icons.SkipForward size={18} className="md:w-5 md:h-5" />
+            <button onClick={onNext} className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors p-1 active:scale-95">
+              <Icons.SkipForward size={20} className="md:w-5 md:h-5" />
             </button>
           </div>
           
           <div className="w-full flex items-center gap-1 md:gap-2 text-xs text-gray-600 dark:text-gray-500">
-            <span className="text-[10px] md:text-xs flex-shrink-0">{formatTime(currentTime)}</span>
+            <span className="text-[10px] md:text-xs flex-shrink-0 min-w-[32px]">{formatTime(currentTime)}</span>
             
             {/* Interactive Progress Bar */}
             <div 
               ref={progressBarRef}
-              className="flex-1 h-1 bg-gray-300 dark:bg-gray-800 rounded-full overflow-hidden cursor-pointer group py-1 relative min-w-0"
+              className="flex-1 h-1 bg-gray-300 dark:bg-gray-800 rounded-full overflow-hidden cursor-pointer group py-2 md:py-1 relative min-w-0 touch-none"
               onMouseDown={handleProgressMouseDown}
               onClick={handleSeek}
+              onTouchStart={(e) => {
+                const touch = e.touches[0];
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const percentage = Math.min(Math.max(x / rect.width, 0), 1);
+                if (audioRef.current && duration) {
+                  audioRef.current.currentTime = percentage * duration;
+                  setProgress(percentage * 100);
+                }
+              }}
             >
               <div className="absolute top-0 left-0 right-0 bottom-0 flex items-center">
                   <div className="w-full h-1 bg-gray-300 dark:bg-gray-800 rounded-full overflow-hidden">
@@ -548,15 +561,48 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
             </div>
             
             {/* Prefer actual audio duration, fallback to metadata string if not ready */}
-            <span className="text-[10px] md:text-xs flex-shrink-0">{duration > 0 ? formatTime(duration) : currentSong.duration}</span>
+            <span className="text-[10px] md:text-xs flex-shrink-0 min-w-[32px] text-right">{duration > 0 ? formatTime(duration) : currentSong.duration}</span>
           </div>
         </div>
 
         {/* Volume & Actions - Right */}
-        <div className="flex items-center justify-end gap-2 md:gap-3 w-56 md:w-64 lg:w-80 flex-shrink-0">
-          <Icons.ListMusic size={18} className="hidden md:block text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer" />
+        <div className="flex items-center justify-end gap-2 md:gap-3 w-auto md:w-56 lg:w-72 flex-shrink-0">
+          {/* Mobile: Favorite + Volume */}
+          <button 
+            onClick={() => {
+              if (currentSong) {
+                const newFavoriteState = toggleFavorite(currentSong);
+                setIsFavorite(newFavoriteState);
+                console.log(newFavoriteState ? '❤️ Added to favorites' : '💔 Removed from favorites');
+              }
+            }}
+            className={`md:hidden p-1 transition-all active:scale-95 ${
+              isFavorite 
+                ? 'text-pink-500' 
+                : 'text-gray-400'
+            }`}
+            title={isFavorite ? '取消收藏' : '收藏'}
+          >
+            <Icons.Heart 
+              size={20} 
+              className={isFavorite ? 'fill-current' : ''}
+            />
+          </button>
+          
+          <button 
+            onClick={() => setVolume(prev => prev === 0 ? 0.7 : 0)}
+            className="md:hidden p-1 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors active:scale-95"
+          >
+            {volume === 0 ? <Icons.Disc size={20} className="text-gray-600 dark:text-gray-500"/> : <Icons.Volume2 size={20} className="text-gray-600 dark:text-gray-400" />}
+          </button>
+          
+          {/* Desktop: Full volume control */}
+          <Icons.ListMusic size={18} className="hidden lg:block text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white cursor-pointer" />
           <div className="hidden md:flex items-center gap-2 group">
-            <button onClick={() => setVolume(prev => prev === 0 ? 0.7 : 0)}>
+            <button 
+              onClick={() => setVolume(prev => prev === 0 ? 0.7 : 0)}
+              className="p-0.5"
+            >
               {volume === 0 ? <Icons.Disc size={18} className="text-gray-600 dark:text-gray-500"/> : <Icons.Volume2 size={18} className="text-gray-600 dark:text-gray-400" />}
             </button>
             <div 

@@ -521,7 +521,7 @@ export default function Home() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 pb-32 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-8 pb-24 sm:pb-28 md:pb-32 scroll-smooth">
             
             <div className="flex items-center justify-between mb-8">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{getHeaderTitle()}</h2>
@@ -580,8 +580,8 @@ export default function Home() {
             )}
         </div>
 
-        {/* Floating Player */}
-        <div className="absolute bottom-0 left-0 right-0 z-50">
+        {/* Floating Player - Fixed to bottom */}
+        <div className="fixed bottom-0 left-0 right-0 z-50">
             <Player 
                 currentSong={currentSong} 
                 isPlaying={isPlaying}
