@@ -151,18 +151,25 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         style={{ imageRendering: 'crisp-edges' }}
       />
       {!isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex gap-1">
-            {[...Array(48)].map((_, i) => (
+        <div className="absolute inset-0 flex items-end justify-center gap-0.5">
+          {[...Array(40)].map((_, i) => {
+            // 创建波浪形状
+            const centerDistance = Math.abs(i - 20) / 20;
+            const baseHeight = 25 + Math.sin(i * 0.2) * 20;
+            const height = baseHeight * (1 - centerDistance * 0.4);
+            
+            return (
               <div
                 key={i}
-                className="w-1 bg-gradient-to-t from-purple-500/20 to-indigo-500/20 rounded-full"
+                className="flex-1 bg-gradient-to-t from-purple-400/40 via-purple-500/25 to-purple-600/15 rounded-t-sm"
                 style={{
-                  height: `${20 + Math.random() * 20}%`,
+                  height: `${Math.max(15, height)}%`,
+                  minWidth: '1px',
+                  maxWidth: '4px',
                 }}
               />
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
     </div>
