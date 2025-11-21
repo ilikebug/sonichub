@@ -35,7 +35,7 @@ async function writeDownloads(downloads: any[]) {
 // GET - 获取下载列表
 export async function GET(request: NextRequest) {
   // 验证权限
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '') || null;
   if (!verifySession(token)) {
     return NextResponse.json({ success: false, message: '未授权' }, { status: 401 });
   }
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 // POST - 添加下载记录
 export async function POST(request: NextRequest) {
   // 验证权限
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '') || null;
   if (!verifySession(token)) {
     return NextResponse.json({ success: false, message: '未授权' }, { status: 401 });
   }
