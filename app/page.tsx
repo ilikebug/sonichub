@@ -62,11 +62,12 @@ export default function Home() {
   const LOCK_SESSION_KEY = "sonichub_session_unlocked";
   const MAX_HISTORY_ITEMS = 10; // 最多保存10条搜索历史
 
-  // 从 localStorage 加载收藏
-  const loadFavorites = () => {
+  // 从服务器加载收藏
+  const loadFavorites = async () => {
     try {
-      const stored = localStorage.getItem(FAVORITES_KEY);
-      return stored ? JSON.parse(stored) : [];
+      const response = await fetch("/api/favorites");
+      const data = await response.json();
+      return data.success ? data.favorites : [];
     } catch (error) {
       console.error("Failed to load favorites:", error);
       return [];
@@ -134,17 +135,17 @@ export default function Home() {
     }
 
     // 加载收藏列表
-    setLikedSongs(loadFavorites());
+    loadFavorites().then((favorites) => setLikedSongs(favorites));
 
-    // 从本地存储加载下载历史
-    try {
-      const storedDownloads = localStorage.getItem(DOWNLOADS_KEY);
-      if (storedDownloads) {
-        setDownloadedSongs(JSON.parse(storedDownloads));
-      }
-    } catch (error) {
-      console.error("Failed to load downloads:", error);
-    }
+    // 从服务器加载下载历史
+    fetch("/api/downloads")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setDownloadedSongs(data.downloads);
+        }
+      })
+      .catch((error) => console.error("Failed to load downloads:", error));
 
     // 从本地存储加载播放模式
     try {
@@ -159,18 +160,15 @@ export default function Home() {
     // 从本地存储加载搜索历史
     setSearchHistory(loadSearchHistory());
 
-    // 监听 storage 事件，当 Player 组件改变收藏时同步更新
-    const handleStorageChange = () => {
-      setLikedSongs(loadFavorites());
+    // 监听收藏变化事件
+    const handleFavoritesChange = () => {
+      loadFavorites().then((favorites) => setLikedSongs(favorites));
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    // 自定义事件用于同一页面内的更新
-    window.addEventListener("favoritesChanged", handleStorageChange);
+    window.addEventListener("favoritesChanged", handleFavoritesChange);
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("favoritesChanged", handleStorageChange);
+      window.removeEventListener("favoritesChanged", handleFavoritesChange);
     };
   }, []);
 
@@ -465,26 +463,28 @@ export default function Home() {
   };
 
   // Handle Like
-  const handleToggleLike = (song: Song) => {
-    const favorites = loadFavorites();
-    const index = favorites.findIndex((s: Song) => s.id === song.id);
+  const handleToggleLike = async (song: Song) => {
+    const isLiked = likedSongs.some((s) => s.id === song.id);
+    const action = isLiked ? "remove" : "add";
 
-    if (index >= 0) {
-      // 已收藏，移除
-      favorites.splice(index, 1);
-      setToastMessage("已取消收藏");
-    } else {
-      // 未收藏，添加
-      favorites.push(song);
-      setToastMessage("已添加到收藏");
+    try {
+      const response = await fetch("/api/favorites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, song }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setLikedSongs(data.favorites);
+        setToastMessage(isLiked ? "已取消收藏" : "已添加到收藏");
+        // 触发事件通知其他组件
+        window.dispatchEvent(new Event("favoritesChanged"));
+      }
+    } catch (error) {
+      console.error("Failed to toggle like:", error);
+      setToastMessage("操作失败，请重试");
     }
-
-    // 保存到 localStorage
-    localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-    // 更新状态
-    setLikedSongs(favorites);
-    // 触发事件通知其他组件
-    window.dispatchEvent(new Event("favoritesChanged"));
   };
 
   // Handle Download
@@ -521,11 +521,21 @@ export default function Home() {
       link.click();
       document.body.removeChild(link);
 
-      // 5. 添加到已下载列表并保存到 localStorage
+      // 5. 添加到已下载列表（保存到服务器）
       if (!downloadedSongs.some((s) => s.id === song.id)) {
-        const updatedDownloads = [song, ...downloadedSongs];
-        setDownloadedSongs(updatedDownloads);
-        localStorage.setItem(DOWNLOADS_KEY, JSON.stringify(updatedDownloads));
+        try {
+          const response = await fetch("/api/downloads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ song }),
+          });
+          const data = await response.json();
+          if (data.success) {
+            setDownloadedSongs(data.downloads);
+          }
+        } catch (err) {
+          console.error("Failed to update downloads:", err);
+        }
       }
 
       setToastMessage(`开始下载: ${song.title}`);
