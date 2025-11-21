@@ -609,12 +609,41 @@ export default function Home() {
     }
   }, [toastMessage]);
 
+  // 从服务器加载下载数据
+  const loadDownloads = async () => {
+    try {
+      const token = sessionStorage.getItem("auth_token");
+      const response = await fetch("/api/downloads", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      return data.success ? data.downloads : [];
+    } catch (error) {
+      console.error("Failed to load downloads:", error);
+      return [];
+    }
+  };
+
   // Handle Unlock
-  const handleUnlock = () => {
+  const handleUnlock = async () => {
     setIsLocked(false);
     // 使用 sessionStorage，关闭浏览器后会话结束需要重新解锁
     sessionStorage.setItem(LOCK_SESSION_KEY, "true");
     setToastMessage("欢迎回来！");
+    
+    // 解锁后立即加载收藏和下载数据
+    try {
+      const [favorites, downloads] = await Promise.all([
+        loadFavorites(),
+        loadDownloads(),
+      ]);
+      setLikedSongs(favorites);
+      setDownloadedSongs(downloads);
+    } catch (error) {
+      console.error("Failed to load data after unlock:", error);
+    }
   };
 
   // Handle Lock
