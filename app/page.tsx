@@ -65,7 +65,12 @@ export default function Home() {
   // 从服务器加载收藏
   const loadFavorites = async () => {
     try {
-      const response = await fetch("/api/favorites");
+      const token = sessionStorage.getItem("auth_token");
+      const response = await fetch("/api/favorites", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
       const data = await response.json();
       return data.success ? data.favorites : [];
     } catch (error) {
@@ -138,7 +143,12 @@ export default function Home() {
     loadFavorites().then((favorites) => setLikedSongs(favorites));
 
     // 从服务器加载下载历史
-    fetch("/api/downloads")
+    const token = sessionStorage.getItem("auth_token");
+    fetch("/api/downloads", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
@@ -468,9 +478,13 @@ export default function Home() {
     const action = isLiked ? "remove" : "add";
 
     try {
+      const token = sessionStorage.getItem("auth_token");
       const response = await fetch("/api/favorites", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ action, song }),
       });
 
@@ -524,9 +538,13 @@ export default function Home() {
       // 5. 添加到已下载列表（保存到服务器）
       if (!downloadedSongs.some((s) => s.id === song.id)) {
         try {
+          const token = sessionStorage.getItem("auth_token");
           const response = await fetch("/api/downloads", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({ song }),
           });
           const data = await response.json();
@@ -564,8 +582,9 @@ export default function Home() {
   // Handle Lock
   const handleLock = () => {
     setIsLocked(true);
-    // 清除会话解锁状态
+    // 清除会话解锁状态和 token
     sessionStorage.removeItem(LOCK_SESSION_KEY);
+    sessionStorage.removeItem("auth_token");
     setIsPlaying(false); // 锁定时暂停播放
     setToastMessage("已锁定");
   };

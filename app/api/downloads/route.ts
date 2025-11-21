@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { verifySession } from '@/lib/auth';
 
 const DOWNLOADS_FILE = path.join(process.cwd(), 'data', 'downloads.json');
 
@@ -32,7 +33,13 @@ async function writeDownloads(downloads: any[]) {
 }
 
 // GET - 获取下载列表
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 验证权限
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!verifySession(token)) {
+    return NextResponse.json({ success: false, message: '未授权' }, { status: 401 });
+  }
+
   try {
     const downloads = await readDownloads();
     return NextResponse.json({ success: true, downloads });
@@ -44,6 +51,12 @@ export async function GET() {
 
 // POST - 添加下载记录
 export async function POST(request: NextRequest) {
+  // 验证权限
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!verifySession(token)) {
+    return NextResponse.json({ success: false, message: '未授权' }, { status: 401 });
+  }
+
   try {
     const { song } = await request.json();
     const downloads = await readDownloads();

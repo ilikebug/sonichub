@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createSession } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
     try {
@@ -22,12 +23,13 @@ export async function POST(request: NextRequest) {
             }, { status: 500 });
         }
 
-        // 验证密码
-        if (password === correctPassword) {
-            return NextResponse.json({ success: true });
-        } else {
-            return NextResponse.json({ success: false, message: '密码错误' }, { status: 401 });
-        }
+    // 验证密码
+    if (password === correctPassword) {
+      const token = createSession();
+      return NextResponse.json({ success: true, token });
+    } else {
+      return NextResponse.json({ success: false, message: '密码错误' }, { status: 401 });
+    }
     } catch (error) {
         console.error('Auth verification error:', error);
         return NextResponse.json({ success: false, message: '验证失败' }, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { verifySession } from '@/lib/auth';
 
 const FAVORITES_FILE = path.join(process.cwd(), 'data', 'favorites.json');
 
@@ -32,7 +33,13 @@ async function writeFavorites(favorites: any[]) {
 }
 
 // GET - 获取收藏列表
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // 验证权限
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!verifySession(token)) {
+    return NextResponse.json({ success: false, message: '未授权' }, { status: 401 });
+  }
+
   try {
     const favorites = await readFavorites();
     return NextResponse.json({ success: true, favorites });
@@ -44,6 +51,12 @@ export async function GET() {
 
 // POST - 添加/删除收藏
 export async function POST(request: NextRequest) {
+  // 验证权限
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!verifySession(token)) {
+    return NextResponse.json({ success: false, message: '未授权' }, { status: 401 });
+  }
+
   try {
     const { action, song } = await request.json();
     const favorites = await readFavorites();

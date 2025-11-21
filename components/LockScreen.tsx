@@ -35,7 +35,9 @@ export const LockScreen: React.FC<LockScreenProps> = ({ onUnlock }) => {
 
       const data = await response.json();
 
-      if (data.success) {
+      if (data.success && data.token) {
+        // 存储 token
+        sessionStorage.setItem('auth_token', data.token);
         onUnlock();
       } else {
         setError('密码错误');
