@@ -28,6 +28,10 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from "lucide-react";
 
 export const Icons = {
@@ -59,4 +63,8 @@ export const Icons = {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
 };
