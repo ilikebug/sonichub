@@ -41,7 +41,6 @@ const CACHE_DIR = getSystemCacheDir();
 // 确保缓存目录存在
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  console.log('📁 Created cache directory:', CACHE_DIR);
 }
 
 // 音频流端点 - 下载音频到缓存后提供播放
@@ -54,8 +53,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log('🎵 Processing audio for video:', videoId);
-
     // 检查缓存文件（支持所有浏览器兼容的音频格式）
     const possibleExtensions = ['mp4', 'm4a', 'webm', 'opus', 'mp3', 'ogg', 'wav', 'aac'];
     let cachedFile = '';
@@ -64,7 +61,6 @@ export async function GET(request: NextRequest) {
       const filePath = path.join(CACHE_DIR, `${videoId}.${ext}`);
       if (fs.existsSync(filePath)) {
         cachedFile = filePath;
-        console.log(`✅ Using cached audio file: ${ext}`);
         break;
       }
     }
@@ -74,7 +70,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 缓存不存在，下载音频（多客户端重试策略）
-    console.log('📥 Downloading audio...');
 
     const outputTemplate = path.join(CACHE_DIR, `${videoId}.%(ext)s`);
 
@@ -98,16 +93,13 @@ export async function GET(request: NextRequest) {
 
     for (const strategy of strategies) {
       try {
-        console.log(`🔄 Trying ${strategy.name} client...`);
         await execAsync(strategy.cmd, {
           timeout: 60000,
           maxBuffer: 1024 * 1024 * 50,
           killSignal: 'SIGTERM'
         });
-        console.log(`✅ Success with ${strategy.name} client`);
         break; // 成功则跳出循环
       } catch (error: any) {
-        console.log(`❌ ${strategy.name} failed:`, error.message);
         lastError = error;
         // 继续尝试下一个策略
       }
@@ -118,7 +110,6 @@ export async function GET(request: NextRequest) {
       const filePath = path.join(CACHE_DIR, `${videoId}.${ext}`);
       if (fs.existsSync(filePath)) {
         cachedFile = filePath;
-        console.log(`✅ Audio downloaded: ${ext}`);
         break;
       }
     }

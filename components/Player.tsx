@@ -147,7 +147,6 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
       
       spotifyService.getAudioUrl(currentSong)
         .then(result => {
-          console.log('🎵 Audio result:', result);
           setActualAudioUrl(result.url);
           setIsLoadingAudio(false);
           setIsPreviewMode(result.isPreview);
@@ -168,7 +167,6 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
           setShouldAutoPlay(false);
           // 尝试使用预览
           if (currentSong.previewUrl) {
-            console.log('⚠️ Using Spotify preview (30s)');
             setActualAudioUrl(currentSong.previewUrl);
             setIsPreviewMode(true);
           }
@@ -194,7 +192,6 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
       return;
     }
     
-    console.log('🔍 Loading audio:', actualAudioUrl.substring(0, 100) + '...');
     
     // 标记为缓冲中
     setIsBuffering(true);
@@ -395,22 +392,18 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
           ref={audioRef}
           onTimeUpdate={handleTimeUpdate}
           onLoadedData={() => {
-            console.log('📦 Audio loaded and ready');
           }}
           onCanPlay={() => {
-            console.log('✅ Audio can play');
             setIsBuffering(false);
             setLoadError(''); // 清除错误
             // 如果用户已点击播放，自动开始播放
             if (shouldAutoPlay && audioRef.current) {
               setShouldAutoPlay(false);
               audioRef.current.play()
-                .then(() => console.log('▶️ Auto-playing after buffering'))
                 .catch(err => {
                   console.error('❌ Auto-play error:', err);
                   // 播放失败，尝试降级到预览
                   if (currentSong?.previewUrl && actualAudioUrl !== currentSong.previewUrl) {
-                    console.log('⚠️ Playback failed, using preview');
                     setActualAudioUrl(currentSong.previewUrl);
                     setIsPreviewMode(true);
                     setLoadError('播放失败，使用 30秒预览');
@@ -421,22 +414,17 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
             }
           }}
           onWaiting={() => {
-            console.log('⏳ Buffering...');
             setIsBuffering(true);
           }}
           onPlaying={() => {
-            console.log('▶️ Audio started playing');
             setIsBuffering(false);
           }}
-          onPlay={() => console.log('▶️ Play event')}
-          onPause={() => console.log('⏸️ Audio paused')}
           onError={(e: any) => {
             console.error('❌ Audio error:', e.target?.error);
             setIsBuffering(false);
             setLoadError('音频加载失败');
           }}
           onEnded={() => {
-              console.log('🔚 Audio ended, playing next...');
               onNext();
           }}
         />
@@ -459,7 +447,6 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
                   if (currentSong) {
                     const newFavoriteState = toggleFavorite(currentSong);
                     setIsFavorite(newFavoriteState);
-                    console.log(newFavoriteState ? '❤️ Added to favorites' : '💔 Removed from favorites');
                   }
                 }}
                 className={`flex-shrink-0 transition-all p-0.5 ${
@@ -574,7 +561,6 @@ export const Player: React.FC<PlayerProps> = ({ currentSong, isPlaying, playMode
               if (currentSong) {
                 const newFavoriteState = toggleFavorite(currentSong);
                 setIsFavorite(newFavoriteState);
-                console.log(newFavoriteState ? '❤️ Added to favorites' : '💔 Removed from favorites');
               }
             }}
             className={`md:hidden p-1 transition-all active:scale-95 ${

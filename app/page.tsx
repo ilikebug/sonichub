@@ -129,33 +129,52 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
 
-    // 检查会话解锁状态（使用 sessionStorage，关闭浏览器后需要重新输入密码）
-    try {
-      const sessionUnlocked = sessionStorage.getItem(LOCK_SESSION_KEY);
-      if (sessionUnlocked === "true") {
-        setIsLocked(false);
-      }
-    } catch (error) {
-      console.error("Failed to load session state:", error);
-    }
-
-    // 加载收藏列表
-    loadFavorites().then((favorites) => setLikedSongs(favorites));
-
-    // 从服务器加载下载历史
-    const token = sessionStorage.getItem("auth_token");
-    fetch("/api/downloads", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setDownloadedSongs(data.downloads);
+    // 检查会话解锁状态和 token 有效性
+    const checkAuthAndLoadData = async () => {
+      try {
+        const sessionUnlocked = sessionStorage.getItem(LOCK_SESSION_KEY);
+        const token = sessionStorage.getItem("auth_token");
+        
+        if (sessionUnlocked === "true" && token) {
+          // 验证 token 是否还有效
+          const testResponse = await fetch("/api/favorites", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          
+          if (testResponse.ok) {
+            // Token 有效，解锁并加载数据
+            setIsLocked(false);
+            
+            // 加载收藏列表
+            const favData = await testResponse.json();
+            if (favData.success) {
+              setLikedSongs(favData.favorites);
+            }
+            
+            // 加载下载历史
+            const dlResponse = await fetch("/api/downloads", {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const dlData = await dlResponse.json();
+            if (dlData.success) {
+              setDownloadedSongs(dlData.downloads);
+            }
+          } else {
+            // Token 无效，清除状态并重新锁定
+            sessionStorage.removeItem(LOCK_SESSION_KEY);
+            sessionStorage.removeItem("auth_token");
+            setIsLocked(true);
+          }
+        } else {
+          setIsLocked(true);
         }
-      })
-      .catch((error) => console.error("Failed to load downloads:", error));
+      } catch (error) {
+        console.error("Failed to check auth:", error);
+        setIsLocked(true);
+      }
+    };
+    
+    checkAuthAndLoadData();
 
     // 从本地存储加载播放模式
     try {
@@ -488,6 +507,15 @@ export default function Home() {
         body: JSON.stringify({ action, song }),
       });
 
+      if (response.status === 401) {
+        // Token 过期，重新锁定
+        sessionStorage.removeItem(LOCK_SESSION_KEY);
+        sessionStorage.removeItem("auth_token");
+        setIsLocked(true);
+        setToastMessage("会话已过期，请重新登录");
+        return;
+      }
+
       const data = await response.json();
       if (data.success) {
         setLikedSongs(data.favorites);
@@ -547,6 +575,16 @@ export default function Home() {
             },
             body: JSON.stringify({ song }),
           });
+          
+          if (response.status === 401) {
+            // Token 过期，重新锁定
+            sessionStorage.removeItem(LOCK_SESSION_KEY);
+            sessionStorage.removeItem("auth_token");
+            setIsLocked(true);
+            setToastMessage("会话已过期，请重新登录");
+            return;
+          }
+          
           const data = await response.json();
           if (data.success) {
             setDownloadedSongs(data.downloads);

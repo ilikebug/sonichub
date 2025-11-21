@@ -10,7 +10,6 @@ export async function GET(request: NextRequest) {
   const title = searchParams.get('title');
   const artist = searchParams.get('artist');
 
-  console.log('🎵 Fetching audio:', title, '-', artist);
 
   if (!title || !artist) {
     return NextResponse.json({ error: 'Title and artist are required' }, { status: 400 });
@@ -18,7 +17,6 @@ export async function GET(request: NextRequest) {
 
   try {
     const query = `${title} ${artist} official audio`;
-    console.log('🔍 Searching YouTube:', query);
 
     // 获取视频信息
     const infoCmd = `yt-dlp "ytsearch1:${query}" --print "%(id)s|%(title)s|%(duration)s" --no-playlist --no-warnings`;
@@ -30,11 +28,9 @@ export async function GET(request: NextRequest) {
     const [videoId, videoTitle, duration] = infoStr.trim().split('|');
 
     if (!videoId) {
-      console.log('❌ No video found');
       return NextResponse.json({ error: 'No video found' }, { status: 404 });
     }
 
-    console.log('✅ Audio ready:', videoTitle);
 
     // 保存歌曲映射，下次可以直接使用
     saveSongMapping(title, artist, videoId, videoTitle);
@@ -42,7 +38,6 @@ export async function GET(request: NextRequest) {
     // 返回代理 URL，通过服务器端转发音频流
     // 这样可以绕过 CORS 和 YouTube URL 的权限限制
     const proxyUrl = `/api/youtube/stream?videoId=${videoId}`;
-    console.log('📝 Using proxy URL for streaming');
 
     return NextResponse.json({
       audioUrl: proxyUrl,

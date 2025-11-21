@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log('📥 Preparing download for video:', videoId);
 
     // 检查缓存文件
     const possibleExtensions = ['mp4', 'm4a', 'webm', 'opus', 'mp3', 'ogg', 'wav', 'aac'];
@@ -65,14 +64,12 @@ export async function GET(request: NextRequest) {
       if (fs.existsSync(filePath)) {
         cachedFile = filePath;
         fileExt = ext;
-        console.log(`✅ Found cached file: ${ext}`);
         break;
       }
     }
 
     // 如果没有缓存，先下载（多客户端重试策略）
     if (!cachedFile) {
-      console.log('📥 File not cached, downloading...');
 
       const outputTemplate = path.join(CACHE_DIR, `${videoId}.%(ext)s`);
 
@@ -96,16 +93,13 @@ export async function GET(request: NextRequest) {
 
       for (const strategy of strategies) {
         try {
-          console.log(`🔄 Trying ${strategy.name} client...`);
           await execAsync(strategy.cmd, {
             timeout: 60000,
             maxBuffer: 1024 * 1024 * 50,
             killSignal: 'SIGTERM'
           });
-          console.log(`✅ Success with ${strategy.name} client`);
           break; // 成功则跳出循环
         } catch (error: any) {
-          console.log(`❌ ${strategy.name} failed:`, error.message);
           lastError = error;
           // 继续尝试下一个策略
         }
@@ -117,7 +111,6 @@ export async function GET(request: NextRequest) {
         if (fs.existsSync(filePath)) {
           cachedFile = filePath;
           fileExt = ext;
-          console.log(`✅ Downloaded: ${ext}`);
           break;
         }
       }
@@ -136,7 +129,6 @@ export async function GET(request: NextRequest) {
     headers.set('Content-Type', getContentType(fileExt));
     headers.set('Content-Length', fileBuffer.length.toString());
 
-    console.log(`✅ Download ready: ${filename}.${fileExt}`);
 
     return new NextResponse(fileBuffer, {
       status: 200,

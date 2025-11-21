@@ -32,7 +32,6 @@ export function ensureCacheDir(): string {
   const cacheDir = getSystemCacheDir();
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
-    console.log('📁 Created cache directory:', cacheDir);
   }
   return cacheDir;
 }

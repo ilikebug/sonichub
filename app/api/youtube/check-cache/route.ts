@@ -38,7 +38,6 @@ const MAPPING_FILE = path.join(CACHE_DIR, 'song-mapping.json');
 // 确保缓存目录存在
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
-  console.log('📁 Created cache directory:', CACHE_DIR);
 }
 
 // 生成歌曲唯一标识
@@ -71,7 +70,6 @@ export function saveSongMapping(title: string, artist: string, videoId: string, 
       timestamp: Date.now()
     };
     fs.writeFileSync(MAPPING_FILE, JSON.stringify(mapping, null, 2));
-    console.log('✅ Saved song mapping:', key, '→', videoId);
   } catch (error) {
     console.error('Failed to save song mapping:', error);
   }
@@ -88,7 +86,6 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log('🔍 Checking cache for:', title, '-', artist);
 
     // 1. 先检查歌曲映射，看是否已经搜索过这首歌
     const mapping = getSongMapping();
@@ -96,14 +93,12 @@ export async function GET(request: NextRequest) {
     const cachedInfo = mapping[songKey];
 
     if (cachedInfo) {
-      console.log('✅ Found in mapping:', cachedInfo.videoId);
 
       // 2. 检查音频文件是否存在
       const possibleExtensions = ['mp4', 'm4a', 'webm', 'opus', 'mp3', 'ogg', 'wav', 'aac'];
       for (const ext of possibleExtensions) {
         const filePath = path.join(CACHE_DIR, `${cachedInfo.videoId}.${ext}`);
         if (fs.existsSync(filePath)) {
-          console.log('✅ Audio file exists:', ext);
           // 缓存命中！返回代理 URL
           return NextResponse.json({
             cached: true,
@@ -117,7 +112,6 @@ export async function GET(request: NextRequest) {
       }
 
       // 有映射但文件不存在，返回 videoId 让客户端去下载
-      console.log('⚠️ Mapping exists but file missing, need to download');
       return NextResponse.json({
         cached: false,
         needSearch: false,
@@ -126,7 +120,6 @@ export async function GET(request: NextRequest) {
     }
 
     // 没有缓存，需要搜索
-    console.log('❌ No cache found, need to search YouTube');
     return NextResponse.json({
       cached: false,
       needSearch: true

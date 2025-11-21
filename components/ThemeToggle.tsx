@@ -15,7 +15,6 @@ export const ThemeToggle: React.FC = () => {
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('ThemeToggle button clicked, current theme:', theme);
     toggleTheme();
   };
 
