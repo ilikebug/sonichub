@@ -16,9 +16,6 @@ dist-ssr
 .next/
 out/
 
-# Data files (favorites, downloads)
-data/
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

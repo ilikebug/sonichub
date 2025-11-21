@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
-import path from 'path';
 import { verifySession } from '@/lib/auth';
-
-const DOWNLOADS_FILE = path.join(process.cwd(), 'data', 'downloads.json');
-
-// 确保数据目录存在
-async function ensureDataDir() {
-  const dataDir = path.join(process.cwd(), 'data');
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-}
+import { DOWNLOADS_FILE } from '@/lib/cache';
 
 // 读取下载列表
 async function readDownloads() {
   try {
-    await ensureDataDir();
     const data = await fs.readFile(DOWNLOADS_FILE, 'utf-8');
     return JSON.parse(data);
   } catch {
@@ -28,7 +15,6 @@ async function readDownloads() {
 
 // 写入下载列表
 async function writeDownloads(downloads: any[]) {
-  await ensureDataDir();
   await fs.writeFile(DOWNLOADS_FILE, JSON.stringify(downloads, null, 2));
 }
 

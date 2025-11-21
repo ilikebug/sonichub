@@ -1,24 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
-import path from 'path';
 import { verifySession } from '@/lib/auth';
-
-const FAVORITES_FILE = path.join(process.cwd(), 'data', 'favorites.json');
-
-// 确保数据目录存在
-async function ensureDataDir() {
-  const dataDir = path.join(process.cwd(), 'data');
-  try {
-    await fs.access(dataDir);
-  } catch {
-    await fs.mkdir(dataDir, { recursive: true });
-  }
-}
+import { FAVORITES_FILE } from '@/lib/cache';
 
 // 读取收藏列表
 async function readFavorites() {
   try {
-    await ensureDataDir();
     const data = await fs.readFile(FAVORITES_FILE, 'utf-8');
     return JSON.parse(data);
   } catch {
@@ -28,7 +15,6 @@ async function readFavorites() {
 
 // 写入收藏列表
 async function writeFavorites(favorites: any[]) {
-  await ensureDataDir();
   await fs.writeFile(FAVORITES_FILE, JSON.stringify(favorites, null, 2));
 }
 
