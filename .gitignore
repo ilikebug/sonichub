@@ -16,6 +16,17 @@ dist-ssr
 .next/
 out/
 
+# Electron
+electron/resources/*/yt-dlp*
+!electron/resources/README.md
+dist/
+# Build resources (keep icon files)
+build/*
+!build/README.md
+!build/*.icns
+!build/*.ico
+!build/*.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

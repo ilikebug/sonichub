@@ -11,6 +11,7 @@ import { SongCard } from "@/components/SongCard";
 import { SearchHistory } from "@/components/SearchHistory";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LockScreen } from "@/components/LockScreen";
+import { NetEaseLogin } from "@/components/NetEaseLogin";
 import { Song, ViewType, PlayMode } from "@/types";
 import { spotifyService } from "@/services/spotifyService";
 
@@ -48,6 +49,8 @@ export default function Home() {
   const [showSearchHistory, setShowSearchHistory] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isNetEaseLoginOpen, setIsNetEaseLoginOpen] = useState(false);
+  const [netEaseCookie, setNetEaseCookie] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -60,16 +63,23 @@ export default function Home() {
   const PLAY_MODE_KEY = "sonichub_playmode";
   const SEARCH_HISTORY_KEY = "sonichub_search_history";
   const LOCK_SESSION_KEY = "sonichub_session_unlocked";
+  const NETEASE_COOKIE_KEY = "sonichub_netease_cookie";
   const MAX_HISTORY_ITEMS = 10; // 最多保存10条搜索历史
 
   // 从服务器加载收藏
   const loadFavorites = async () => {
     try {
+      const isElectron = typeof window !== 'undefined' && (window as any).electron;
       const token = sessionStorage.getItem("auth_token");
+      const headers: HeadersInit = {};
+      
+      // Electron 环境中不需要 token
+      if (!isElectron && token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      
       const response = await fetch("/api/favorites", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
       });
       const data = await response.json();
       return data.success ? data.favorites : [];
@@ -125,11 +135,30 @@ export default function Home() {
     setShowSearchHistory(false);
   };
 
+  // 检测 Electron 环境并添加类名
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      document.documentElement.classList.add('electron-env');
+    }
+  }, []);
+
   // 确保只在客户端渲染
   useEffect(() => {
     setMounted(true);
 
-    // 检查会话解锁状态和 token 有效性
+    // 检查是否为 Electron 环境
+    const isElectron = typeof window !== 'undefined' && (window as any).electron;
+    
+    // Electron 环境中自动解锁，不需要密码
+    if (isElectron) {
+      setIsLocked(false);
+      // 加载数据（不需要 token）
+      loadFavorites().then((favorites) => setLikedSongs(favorites));
+      loadDownloads().then((downloads) => setDownloadedSongs(downloads));
+      return;
+    }
+
+    // Web 环境：检查会话解锁状态和 token 有效性
     const checkAuthAndLoadData = async () => {
       try {
         const sessionUnlocked = sessionStorage.getItem(LOCK_SESSION_KEY);
@@ -188,6 +217,12 @@ export default function Home() {
 
     // 从本地存储加载搜索历史
     setSearchHistory(loadSearchHistory());
+
+    // 从本地存储加载 NetEase Cookie
+    const storedNeteaseCookie = localStorage.getItem(NETEASE_COOKIE_KEY);
+    if (storedNeteaseCookie) {
+      setNetEaseCookie(storedNeteaseCookie);
+    }
 
     // 监听收藏变化事件
     const handleFavoritesChange = () => {
@@ -497,23 +532,33 @@ export default function Home() {
     const action = isLiked ? "remove" : "add";
 
     try {
+      const isElectron = typeof window !== 'undefined' && (window as any).electron;
       const token = sessionStorage.getItem("auth_token");
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      
+      // Electron 环境中不需要 token
+      if (!isElectron && token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      
       const response = await fetch("/api/favorites", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
         body: JSON.stringify({ action, song }),
       });
 
       if (response.status === 401) {
-        // Token 过期，重新锁定
-        sessionStorage.removeItem(LOCK_SESSION_KEY);
-        sessionStorage.removeItem("auth_token");
-        setIsLocked(true);
-        setToastMessage("会话已过期，请重新登录");
-        return;
+        // Token 过期，重新锁定（仅 Web 环境）
+        const isElectron = typeof window !== 'undefined' && (window as any).electron;
+        if (!isElectron) {
+          sessionStorage.removeItem(LOCK_SESSION_KEY);
+          sessionStorage.removeItem("auth_token");
+          setIsLocked(true);
+          setToastMessage("会话已过期，请重新登录");
+          return;
+        }
       }
 
       const data = await response.json();
@@ -566,18 +611,25 @@ export default function Home() {
       // 5. 添加到已下载列表（保存到服务器）
       if (!downloadedSongs.some((s) => s.id === song.id)) {
         try {
+          const isElectron = typeof window !== 'undefined' && (window as any).electron;
           const token = sessionStorage.getItem("auth_token");
+          const headers: HeadersInit = {
+            "Content-Type": "application/json",
+          };
+          
+          // Electron 环境中不需要 token
+          if (!isElectron && token) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+          
           const response = await fetch("/api/downloads", {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
+            headers,
             body: JSON.stringify({ song }),
           });
           
-          if (response.status === 401) {
-            // Token 过期，重新锁定
+          if (response.status === 401 && !isElectron) {
+            // Token 过期，重新锁定（仅 Web 环境）
             sessionStorage.removeItem(LOCK_SESSION_KEY);
             sessionStorage.removeItem("auth_token");
             setIsLocked(true);
@@ -597,8 +649,85 @@ export default function Home() {
       setToastMessage(`开始下载: ${song.title}`);
     } catch (error) {
       console.error("Download error:", error);
-      setToastMessage("下载失败，请稍后重试");
     }
+  };
+
+  // Handle NetEase Cloud Upload
+  const handleUploadToCloud = async (song: Song) => {
+    if (!netEaseCookie) {
+      setIsNetEaseLoginOpen(true);
+      return;
+    }
+
+    setToastMessage(`正在准备上传: ${song.title}`);
+
+    try {
+      // 0. 预检登录态是否失效
+      const statusRes = await fetch('/api/netease/login/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookie: netEaseCookie })
+      });
+      const statusData = await statusRes.json();
+
+      if (!statusData.authenticated) {
+        setToastMessage("网易云登录已过期，请重新登录");
+        setNetEaseCookie(null);
+        localStorage.removeItem(NETEASE_COOKIE_KEY);
+        setIsNetEaseLoginOpen(true);
+        return;
+      }
+
+      // 1. 获取 audioUrl (带 videoId)
+      const result = await spotifyService.getAudioUrl(song);
+      if (!result.url) {
+        setToastMessage("上传失败：无法获取音频链接");
+        return;
+      }
+
+      // 提取 videoId
+      const videoIdMatch = result.url.match(/videoId=([^&]+)/);
+      if (!videoIdMatch) {
+        setToastMessage("上传失败：无法解析视频ID");
+        return;
+      }
+      const videoId = videoIdMatch[1];
+
+      const response = await fetch('/api/netease/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoId,
+          cookie: netEaseCookie,
+          filename: `${song.artist} - ${song.title}`,
+          title: song.title,
+          artist: song.artist,
+          album: song.album,
+          cover: song.coverUrl
+        })
+      });
+
+      const data = await response.json();
+      if (data.code === 200 || data.code === 807) { // 807 means already exists
+        setToastMessage(data.code === 807 ? "该歌曲已在云盘中" : "成功上传到网易云盘！");
+      } else {
+        if (data.error?.includes('not found in cache')) {
+          setToastMessage("请先播放该歌曲以完成缓存，然后再上传");
+        } else {
+          setToastMessage(`上传失败: ${data.message || data.error || '未知错误'}`);
+        }
+      }
+    } catch (error) {
+      console.error("Cloud upload error:", error);
+      setToastMessage("上传失败，请稍后重试");
+    }
+  };
+
+  const handleNetEaseLoginSuccess = (cookie: string) => {
+    setNetEaseCookie(cookie);
+    localStorage.setItem(NETEASE_COOKIE_KEY, cookie);
+    setIsNetEaseLoginOpen(false);
+    setToastMessage("网易云登录成功！");
   };
 
   // Auto-hide toast
@@ -612,11 +741,17 @@ export default function Home() {
   // 从服务器加载下载数据
   const loadDownloads = async () => {
     try {
+      const isElectron = typeof window !== 'undefined' && (window as any).electron;
       const token = sessionStorage.getItem("auth_token");
+      const headers: HeadersInit = {};
+      
+      // Electron 环境中不需要 token
+      if (!isElectron && token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      
       const response = await fetch("/api/downloads", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers,
       });
       const data = await response.json();
       return data.success ? data.downloads : [];
@@ -648,6 +783,13 @@ export default function Home() {
 
   // Handle Lock
   const handleLock = () => {
+    // Electron 环境中不支持锁定
+    const isElectron = typeof window !== 'undefined' && (window as any).electron;
+    if (isElectron) {
+      setToastMessage("桌面应用不需要锁定");
+      return;
+    }
+    
     setIsLocked(true);
     // 清除会话解锁状态和 token
     sessionStorage.removeItem(LOCK_SESSION_KEY);
@@ -721,16 +863,16 @@ export default function Home() {
 
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {/* Header / Search Bar */}
-        <header className="sticky top-0 z-40 h-20 flex items-center px-4 md:px-8 bg-white/80 dark:bg-[#09090b]/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 gap-3 md:gap-6 transition-colors duration-300">
+        <header className="sticky top-0 z-40 h-20 flex items-center px-4 md:px-8 bg-white/80 dark:bg-[#09090b]/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 gap-3 md:gap-6 transition-colors duration-300 electron-drag electron-titlebar-spacing">
           {/* Mobile Menu Button (Hidden on Desktop) */}
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
-            className="md:hidden text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            className="md:hidden text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors electron-no-drag"
           >
             <Icons.Menu size={24} />
           </button>
 
-          <div className="flex-1 flex justify-center relative">
+          <div className="flex-1 flex justify-center relative electron-no-drag">
             <div className="w-full max-w-2xl relative">
               <form onSubmit={handleSearch} className="relative group">
                 <Icons.Search
@@ -760,7 +902,14 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-3 electron-no-drag">
+            <button
+              onClick={() => setIsNetEaseLoginOpen(true)}
+              className={`p-2 rounded-full transition-colors ${netEaseCookie ? 'text-red-500 bg-red-500/10' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-900 dark:hover:text-white'}`}
+              title={netEaseCookie ? "已登录网易云" : "登录网易云云盘"}
+            >
+              <Icons.Music size={20} />
+            </button>
             <button
               onClick={handleLock}
               className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
@@ -860,6 +1009,7 @@ export default function Home() {
                       isLiked={likedSongs.some((s) => s.id === song.id)}
                       onPlay={handlePlay}
                       onDownload={handleDownload}
+                      onUploadToCloud={handleUploadToCloud}
                       onToggleLike={handleToggleLike}
                     />
                   ));
@@ -891,6 +1041,14 @@ export default function Home() {
           />
         </div>
       </main>
+
+      {/* NetEase Login Modal */}
+      {isNetEaseLoginOpen && (
+        <NetEaseLogin 
+          onLoginSuccess={handleNetEaseLoginSuccess}
+          onClose={() => setIsNetEaseLoginOpen(false)}
+        />
+      )}
     </div>
   );
 }

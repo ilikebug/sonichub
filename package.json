@@ -1,17 +1,23 @@
 {
-  "name": "sonichub-ai",
+  "name": "sonichub",
   "private": true,
   "version": "0.0.0",
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "next build",
+    "electron:pack": "npm run electron:build && electron-builder",
+    "electron:dist": "npm run electron:build && electron-builder --publish=never"
   },
   "dependencies": {
     "@spotify/web-api-ts-sdk": "^1.2.0",
     "hls.js": "^1.6.15",
     "lucide-react": "^0.554.0",
+    "NeteaseCloudMusicApi": "^4.28.0",
     "next": "^16.0.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -20,8 +26,81 @@
     "@types/node": "^22.14.0",
     "@types/react": "19.2.6",
     "autoprefixer": "^10.4.22",
+    "concurrently": "^9.1.2",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "postcss": "^8.5.6",
     "tailwindcss": "3.4.0",
-    "typescript": "~5.8.2"
+    "typescript": "~5.8.2",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.sonichub.app",
+    "productName": "SonicHub",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      ".next/standalone/**/*",
+      ".next/static/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/resources",
+        "to": ".",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Audio"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

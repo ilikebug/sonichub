@@ -32,6 +32,7 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  CloudUpload,
 } from "lucide-react";
 
 export const Icons = {
@@ -67,4 +68,5 @@ export const Icons = {
   Eye,
   EyeOff,
   AlertCircle,
+  CloudUpload,
 };

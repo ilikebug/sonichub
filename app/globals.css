@@ -136,6 +136,22 @@
   }
 }
 
+/* Electron window dragging support */
+@layer utilities {
+  .electron-drag {
+    -webkit-app-region: drag;
+  }
+  
+  .electron-no-drag {
+    -webkit-app-region: no-drag;
+  }
+  
+  /* macOS title bar spacing for Electron (only when electron-drag is present) */
+  .electron-drag.electron-titlebar-spacing {
+    padding-top: 28px;
+  }
+}
+
 /* Mobile-specific tap highlight removal */
 @media (max-width: 768px) {
   * {

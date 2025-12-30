@@ -17,6 +17,11 @@ export function createSession(): string {
 
 // 验证会话
 export function verifySession(token: string | null): boolean {
+  // Electron 环境中跳过验证
+  if (process.env.ELECTRON === 'true') {
+    return true;
+  }
+  
   if (!token) return false;
   
   const expiresAt = sessions.get(token);

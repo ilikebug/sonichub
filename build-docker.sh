@@ -11,7 +11,7 @@ BLUE='\033[0;34m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🐳 开始构建 SonicHub Docker 镜像...${NC}"
+echo -e "${BLUE}🐳 开始构建 SonicHub Docker 镜像 (包含 ffmpeg 转码支持)...${NC}"
 
 # 检查是否设置了环境变量
 if [ -z "$NEXT_PUBLIC_SPOTIFY_CLIENT_ID" ] || [ -z "$NEXT_PUBLIC_SPOTIFY_CLIENT_SECRET" ]; then

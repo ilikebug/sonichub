@@ -5,42 +5,13 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { readFile } from 'fs/promises';
+import { buildYtDlpCommand } from '@/lib/ytdlp';
 
 const execAsync = promisify(exec);
 
-// 获取系统缓存目录
-function getSystemCacheDir(): string {
-  // 优先使用环境变量指定的缓存目录（Docker 环境）
-  if (process.env.SONICHUB_CACHE_DIR) {
-    return process.env.SONICHUB_CACHE_DIR;
-  }
+import { AUDIO_CACHE_DIR } from '@/lib/cache';
 
-  const platform = os.platform();
-  const homeDir = os.homedir();
-
-  let cacheBase: string;
-
-  switch (platform) {
-    case 'darwin': // macOS
-      cacheBase = path.join(homeDir, 'Library', 'Caches');
-      break;
-    case 'win32': // Windows
-      cacheBase = process.env.LOCALAPPDATA || path.join(homeDir, 'AppData', 'Local');
-      break;
-    default: // Linux and others
-      // 在 Docker 容器中，使用 /tmp 目录
-      cacheBase = process.env.XDG_CACHE_HOME || path.join(homeDir, '.cache');
-  }
-
-  return path.join(cacheBase, 'SonicHub', 'audio');
-}
-
-const CACHE_DIR = getSystemCacheDir();
-
-// 确保缓存目录存在
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
+const CACHE_DIR = AUDIO_CACHE_DIR;
 
 // 下载端点 - 确保文件存在并返回为附件
 export async function GET(request: NextRequest) {
@@ -76,16 +47,17 @@ export async function GET(request: NextRequest) {
       // 尝试不同的客户端和格式组合
       const strategies = [
         {
-          name: 'Android',
-          cmd: `yt-dlp "https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=android" -f "18/bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`
+          name: 'Android Audio Only',
+          // 140 is m4a. Strictly avoid 18 (mp4 video)
+          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=android" -f "140/bestaudio[ext=m4a]/bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`)
         },
         {
           name: 'iOS (fallback)',
-          cmd: `yt-dlp "https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=ios" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`
+          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=ios" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`)
         },
         {
           name: 'Web (last resort)',
-          cmd: `yt-dlp "https://www.youtube.com/watch?v=${videoId}" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`
+          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`)
         }
       ];
 

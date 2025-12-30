@@ -8,12 +8,13 @@ interface SongCardProps {
   song: Song;
   onPlay: (song: Song) => void;
   onDownload: (song: Song) => void;
+  onUploadToCloud: (song: Song) => void;
   onToggleLike: (song: Song) => void;
   isActive: boolean;
   isLiked: boolean;
 }
 
-export const SongCard: React.FC<SongCardProps> = ({ song, onPlay, onDownload, onToggleLike, isActive, isLiked }) => {
+export const SongCard: React.FC<SongCardProps> = ({ song, onPlay, onDownload, onUploadToCloud, onToggleLike, isActive, isLiked }) => {
 
   return (
     <div className={`group relative p-3 rounded-xl transition-all duration-300 hover:bg-gray-100 dark:hover:bg-white/5 ${isActive ? 'bg-purple-50 dark:bg-white/10' : ''}`}>
@@ -51,16 +52,28 @@ export const SongCard: React.FC<SongCardProps> = ({ song, onPlay, onDownload, on
           </h3>
           <p className="text-xs text-gray-600 dark:text-gray-500 truncate mt-0.5">{song.artist}</p>
         </div>
-        <button 
-          onClick={(e) => {
-             e.stopPropagation();
-             onDownload(song);
-          }}
-          className="text-gray-600 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-          title="Download"
-        >
-          <Icons.Download size={18} />
-        </button>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button 
+            onClick={(e) => {
+               e.stopPropagation();
+               onDownload(song);
+            }}
+            className="text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 p-1"
+            title="Download"
+          >
+            <Icons.Download size={18} />
+          </button>
+          <button 
+            onClick={(e) => {
+               e.stopPropagation();
+               onUploadToCloud(song);
+            }}
+            className="text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-1"
+            title="Upload to NetEase Cloud"
+          >
+            <Icons.CloudUpload size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

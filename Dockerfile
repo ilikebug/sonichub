@@ -43,6 +43,7 @@ RUN apk add --no-cache \
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV SONICHUB_CACHE_DIR=/tmp/sonichub-cache
+ENV FFMPEG_PATH=/usr/bin/ffmpeg
 
 # 创建非 root 用户
 RUN addgroup --system --gid 1001 nodejs

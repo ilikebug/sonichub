@@ -24,20 +24,20 @@ export function getSystemCacheDir(): string {
     cacheBase = process.env.XDG_CACHE_HOME || path.join(homeDir, '.cache');
   }
 
-  return path.join(cacheBase, 'sonichub');
+  return path.join(cacheBase, 'SonicHub');
 }
 
 // 确保缓存目录存在
-export function ensureCacheDir(): string {
-  const cacheDir = getSystemCacheDir();
-  if (!fs.existsSync(cacheDir)) {
-    fs.mkdirSync(cacheDir, { recursive: true });
+export function ensureDir(dir: string): string {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
-  return cacheDir;
+  return dir;
 }
 
 // 常用的缓存文件路径
-export const CACHE_DIR = ensureCacheDir();
+export const CACHE_DIR = ensureDir(getSystemCacheDir());
+export const AUDIO_CACHE_DIR = ensureDir(path.join(CACHE_DIR, 'audio'));
 export const MAPPING_FILE = path.join(CACHE_DIR, 'song-mapping.json');
 export const FAVORITES_FILE = path.join(CACHE_DIR, 'favorites.json');
 export const DOWNLOADS_FILE = path.join(CACHE_DIR, 'downloads.json');
