@@ -23,18 +23,20 @@ export function getYtDlpPath(): string {
   }
 
   // 2. 检查 Electron 打包后的资源路径
-  if (process.env.ELECTRON && process.resourcesPath) {
+  const proc = process as any;
+  if (process.env.ELECTRON && proc.resourcesPath) {
+    const resourcesPath = proc.resourcesPath;
     const platform = os.platform();
     let resourcePath: string;
-    
+
     if (platform === 'win32') {
-      resourcePath = path.join(process.resourcesPath, 'win32', 'yt-dlp.exe');
+      resourcePath = path.join(resourcesPath, 'win32', 'yt-dlp.exe');
     } else if (platform === 'darwin') {
-      resourcePath = path.join(process.resourcesPath, 'darwin', 'yt-dlp');
+      resourcePath = path.join(resourcesPath, 'darwin', 'yt-dlp');
     } else {
-      resourcePath = path.join(process.resourcesPath, 'linux', 'yt-dlp');
+      resourcePath = path.join(resourcesPath, 'linux', 'yt-dlp');
     }
-    
+
     if (fs.existsSync(resourcePath)) {
       return resourcePath;
     }
@@ -45,7 +47,7 @@ export function getYtDlpPath(): string {
     const devResourcesPath = path.join(process.cwd(), 'electron', 'resources');
     const platform = os.platform();
     let devPath: string;
-    
+
     if (platform === 'win32') {
       devPath = path.join(devResourcesPath, 'win32', 'yt-dlp.exe');
     } else if (platform === 'darwin') {
@@ -53,7 +55,7 @@ export function getYtDlpPath(): string {
     } else {
       devPath = path.join(devResourcesPath, 'linux', 'yt-dlp');
     }
-    
+
     if (fs.existsSync(devPath)) {
       return devPath;
     }
