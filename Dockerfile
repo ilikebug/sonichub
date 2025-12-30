@@ -7,6 +7,9 @@ WORKDIR /app
 # 复制 package 文件
 COPY package*.json ./
 
+# 安装构建工具（编译 native 依赖需要）
+RUN apk add --no-cache python3 make g++
+
 # 安装所有依赖（包括 devDependencies）
 RUN npm ci
 

@@ -1,4 +1,5 @@
-import { login_qr_key, login_qr_create, login_qr_check, cloud, login_status } from 'NeteaseCloudMusicApi';
+const NeteaseApi = require('NeteaseCloudMusicApi');
+const { login_qr_key, login_qr_create, login_qr_check, cloud, login_status } = NeteaseApi;
 
 export async function getQRKey() {
     const result = await login_qr_key({});
