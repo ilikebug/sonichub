@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # 安装构建工具（编译 native 依赖需要）
-RUN apk add --no-cache python3 make g++
+# Python 3.12+ 移除了 distutils，需要安装 py3-setuptools
+RUN apk add --no-cache python3 make g++ py3-setuptools
 
 # 安装所有依赖（包括 devDependencies）
 RUN npm ci
@@ -34,12 +35,20 @@ FROM node:22-alpine AS runner
 # 设置工作目录
 WORKDIR /app
 
-# 安装运行时依赖：yt-dlp 和 ffmpeg
+# 复制 package 文件用于安装生产依赖
+COPY --from=builder /app/package*.json ./
+
+# 安装运行时依赖：yt-dlp、ffmpeg 和 生产环境 node_modules
 RUN apk add --no-cache \
     python3 \
     py3-pip \
     ffmpeg \
+    make \
+    g++ \
+    py3-setuptools \
     && pip3 install --no-cache-dir --break-system-packages yt-dlp \
+    && npm ci --omit=dev \
+    && apk del make g++ py3-setuptools \
     && yt-dlp --version
 
 # 设置环境变量
@@ -52,11 +61,10 @@ ENV FFMPEG_PATH=/usr/bin/ffmpeg
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# 复制必要文件
-COPY --from=builder /app/package*.json ./
+# 复制公共资源
 COPY --from=builder /app/public ./public
 
-# 复制构建产物
+# 复制构建产物（standalone 会复制到根目录）
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
@@ -72,4 +80,3 @@ EXPOSE 3000
 
 # 启动应用
 CMD ["node", "server.js"]
-

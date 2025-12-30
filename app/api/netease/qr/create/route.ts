@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
         const data = await createQRImage(key);
         return NextResponse.json(data);
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        console.error('NetEase QR Create Error:', error);
+        return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }

@@ -19,17 +19,8 @@ const nextConfig = {
     },
     serverExternalPackages: [
         'NeteaseCloudMusicApi',
-        'xml2js',
-        'axios',
-        'crypto-js',
-        'md5',
         'music-metadata',
-        'node-forge',
-        'pac-proxy-agent',
-        'qrcode',
-        'safe-decode-uri-component',
-        'tunnel',
-        'yargs'
+        'sharp'
     ],
 };
 
