@@ -1,0 +1,24 @@
+[Unit]
+Description=SonicHub Next.js App
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/sonichub/sonichub
+Environment="PATH=/root/.nvm/versions/node/v22.17.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+# 添加代理设置
+Environment="HTTP_PROXY=http://127.0.0.1:7890"
+Environment="HTTPS_PROXY=http://127.0.0.1:7890"
+Environment="http_proxy=http://127.0.0.1:7890"
+Environment="https_proxy=http://127.0.0.1:7890"
+Environment="NO_PROXY=localhost,127.0.0.1"
+Environment="no_proxy=localhost,127.0.0.1"
+ExecStart=/root/.nvm/versions/node/v22.17.1/bin/npm start
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
