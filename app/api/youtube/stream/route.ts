@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
+import { PassThrough, Readable } from 'stream';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { stat, readFile } from 'fs/promises';
-import { buildYtDlpCommand } from '@/lib/ytdlp';
-
-const execAsync = promisify(exec);
-
+import { getYtDlpPath } from '@/lib/ytdlp';
 import { AUDIO_CACHE_DIR } from '@/lib/cache';
 
 const CACHE_DIR = AUDIO_CACHE_DIR;
 
-// 音频流端点 - 下载音频到缓存后提供播放
+// 音频流端点 - 优先流式播放，同时下载到缓存
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const videoId = searchParams.get('videoId');
@@ -23,86 +19,133 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // 检查缓存文件（支持所有浏览器兼容的音频格式）
-    const possibleExtensions = ['mp4', 'm4a', 'webm', 'opus', 'mp3', 'ogg', 'wav', 'aac'];
+    // 1. 检查缓存文件（完全下载的文件）
+    const possibleExtensions = ['m4a', 'mp4', 'webm', 'opus', 'mp3', 'ogg', 'wav', 'aac'];
     let cachedFile = '';
 
     for (const ext of possibleExtensions) {
       const filePath = path.join(CACHE_DIR, `${videoId}.${ext}`);
       if (fs.existsSync(filePath)) {
-        cachedFile = filePath;
-        break;
+        // 检查文件是否有效（非空）
+        try {
+          const stats = fs.statSync(filePath);
+          if (stats.size > 0) {
+            cachedFile = filePath;
+            break;
+          }
+        } catch (e) {
+          // ignore
+        }
       }
     }
 
+    // 如果缓存存在，直接服务静态文件（支持 Seek/Range）
     if (cachedFile) {
       return serveAudioFile(cachedFile, request);
     }
 
-    // 缓存不存在，下载音频（多客户端重试策略）
+    // 2. 缓存不存在，启动流式下载
+    // 我们强制使用 m4a/aac 格式，因为它对流式传输支持较好，且兼容性高
+    const ytdlpPath = getYtDlpPath();
+    const targetExt = 'm4a';
+    const finalFilePath = path.join(CACHE_DIR, `${videoId}.${targetExt}`);
+    const tempFilePath = path.join(CACHE_DIR, `${videoId}.temp.${targetExt}`);
 
-    const outputTemplate = path.join(CACHE_DIR, `${videoId}.%(ext)s`);
+    // 清理可能存在的旧临时文件
+    if (fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) { /* ignore */ }
+    }
 
-    // 尝试不同的客户端和格式组合
-    const strategies = [
-      {
-        name: 'Android Audio Only',
-        // 140 is m4a, 251/250/249 is webm. Strictly avoid 18 (mp4 video)
-        cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=android" -f "140/bestaudio[ext=m4a]/bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings --force-ipv4`)
-      },
-      {
-        name: 'iOS (fallback)',
-        cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=ios" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings --force-ipv4`)
-      },
-      {
-        name: 'Web (last resort)',
-        cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings --force-ipv4`)
-      }
+    // 构建 yt-dlp 参数 - 输出到 stdout (-)
+    // 构建 yt-dlp 参数 - 输出到 stdout (-)
+    const args = [
+      `https://www.youtube.com/watch?v=${videoId}`,
+      '-f', 'bestaudio[ext=m4a]/bestaudio', // 优先 m4a，如果没有则使用最佳音频
+      '-o', '-', // 输出到标准输出
+      '--no-playlist',
+      '--no-warnings',
+      '--force-ipv4'
     ];
 
-    let lastError = null;
+    console.log(`🚀 Starting stream for ${videoId}`);
+    const child = spawn(ytdlpPath, args);
 
-    for (const strategy of strategies) {
-      try {
-        await execAsync(strategy.cmd, {
-          timeout: 60000,
-          maxBuffer: 1024 * 1024 * 50,
-          killSignal: 'SIGTERM'
-        });
-        break; // 成功则跳出循环
-      } catch (error: any) {
-        lastError = error;
-        // 继续尝试下一个策略
+    // 创建流转换
+    // PassThrough用于分流：一路去 HTTP 响应，一路去文件
+    const streamProxy = new PassThrough();
+    const fileWriter = fs.createWriteStream(tempFilePath);
+
+    // 错误处理标记
+    let hasError = false;
+
+    // 监听子进程错误
+    child.on('error', (err) => {
+      console.error('❌ Spawn error:', err);
+      hasError = true;
+      streamProxy.end(); // 结束流
+      fileWriter.end();
+      // 删除临时文件
+      fs.unlink(tempFilePath, () => { });
+    });
+
+    child.stderr.on('data', (data) => {
+      const msg = data.toString();
+      // 只记录错误，忽略进度条等
+      if (msg.includes('ERROR:')) {
+        console.error('yt-dlp stderr:', msg);
       }
-    }
+    });
 
-    // 查找下载的文件（检查所有可能的格式）
-    for (const ext of possibleExtensions) {
-      const filePath = path.join(CACHE_DIR, `${videoId}.${ext}`);
-      if (fs.existsSync(filePath)) {
-        cachedFile = filePath;
-        break;
+    // 监听子进程关闭
+    child.on('close', async (code) => {
+      if (code !== 0) {
+        console.error(`yt-dlp exited with code ${code}`);
+        hasError = true;
+        // 如果失败，清理
+        fs.unlink(tempFilePath, () => { });
+      } else {
+        // 成功，重命名临时文件为正式文件
+        if (!hasError) {
+          console.log(`✅ Stream download complete for ${videoId}`);
+          fileWriter.end(() => {
+            fs.rename(tempFilePath, finalFilePath, () => { });
+          });
+        }
       }
-    }
+      // 确保流结束（虽然 pipe 应该会自动处理，但以防万一）
+      if (!streamProxy.writableEnded) {
+        streamProxy.end();
+      }
+    });
 
-    if (!cachedFile) {
-      // 所有策略都失败了
-      throw lastError || new Error('All download strategies failed');
-    }
+    // 管道连接
+    // child.stdout -> streamProxy (Response)
+    // child.stdout -> fileWriter (Cache)
+    child.stdout.pipe(streamProxy);
+    child.stdout.pipe(fileWriter);
 
-    return serveAudioFile(cachedFile, request);
+    // 将 Node Stream 转换为 Web ReadableStream 以供 NextResponse 使用
+    // Node.js v16.5+ 支持 Readable.toWeb，Next.js 环境通常支持
+    // @ts-ignore - 类型定义可能不匹配但运行时支持
+    const webStream = Readable.toWeb(streamProxy);
+
+    return new NextResponse(webStream as any, {
+      status: 200,
+      headers: {
+        'Content-Type': 'audio/mp4',
+        'Cache-Control': 'no-cache',
+        'Content-Disposition': `inline; filename="${videoId}.m4a"`,
+        'X-Content-Type-Options': 'nosniff'
+      }
+    });
 
   } catch (error: any) {
-    console.error('❌ Stream error:', error.message);
-
-    // 如果是超时错误
-    if (error.killed || error.signal === 'SIGTERM') {
-      return NextResponse.json({ error: 'Download timeout' }, { status: 408 });
-    }
-
+    console.error('❌ Stream setup error:', error.message);
     return NextResponse.json(
       {
-        error: 'Failed to process audio',
+        error: 'Failed to process audio stream',
         details: error.message
       },
       { status: 500 }
@@ -127,7 +170,7 @@ function getContentType(filePath: string): string {
   return contentTypes[ext] || 'audio/mpeg';
 }
 
-// 提供音频文件，支持 Range 请求
+// 提供已存在的音频文件，支持 Range 请求
 async function serveAudioFile(filePath: string, request: NextRequest) {
   try {
     const fileStats = await stat(filePath);
