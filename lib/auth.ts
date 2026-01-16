@@ -21,18 +21,24 @@ export function verifySession(token: string | null): boolean {
   if (process.env.ELECTRON === 'true') {
     return true;
   }
-  
+
+  // 如果没有配置密码，则不需要验证
+  const password = process.env.APP_PASSWORD || process.env.NEXT_PUBLIC_APP_PASSWORD;
+  if (!password) {
+    return true;
+  }
+
   if (!token) return false;
-  
+
   const expiresAt = sessions.get(token);
   if (!expiresAt) return false;
-  
+
   // 检查是否过期
   if (Date.now() > expiresAt) {
     sessions.delete(token);
     return false;
   }
-  
+
   return true;
 }
 

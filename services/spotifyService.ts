@@ -167,44 +167,44 @@ class SpotifyService {
      * Get YouTube audio URL for a song (完整版，带缓存检查和重试)
      */
     async getAudioUrl(song: Song, retryCount: number = 0): Promise<{ url: string, isPreview: boolean, error?: string }> {
-        const maxRetries = 2; // 最多重试2次
-        
+        const maxRetries = 5; // 最多重试5次
+
         try {
             // 首次尝试时，先检查缓存
             if (retryCount === 0) {
                 console.log('🔍 Checking cache first...');
-                
+
                 try {
                     const cacheResponse = await fetch(
                         `/api/youtube/check-cache?title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`,
                         { signal: AbortSignal.timeout(5000) }
                     );
-                    
+
                     if (cacheResponse.ok) {
                         const cacheData = await cacheResponse.json();
-                        
+
                         if (cacheData.cached) {
                             console.log('✅ Found in cache! Using cached audio');
                             return { url: cacheData.audioUrl, isPreview: false };
                         }
-                        
+
                         console.log('⚠️ Not in cache, searching YouTube...');
                     }
                 } catch (cacheError) {
                     console.warn('⚠️ Cache check failed, proceeding to YouTube search');
                 }
             }
-            
+
             console.log(`🎵 Fetching audio from YouTube (attempt ${retryCount + 1}/${maxRetries + 1})...`);
-            
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时
-            
+
             const response = await fetch(
                 `/api/youtube/audio?title=${encodeURIComponent(song.title)}&artist=${encodeURIComponent(song.artist)}`,
                 { signal: controller.signal }
             );
-            
+
             clearTimeout(timeoutId);
 
             if (!response.ok) {
@@ -216,35 +216,35 @@ class SpotifyService {
                 console.log('✅ Got full audio from YouTube');
                 return { url: data.audioUrl, isPreview: false };
             }
-            
+
             throw new Error('No audio URL in response');
-            
+
         } catch (error: any) {
             console.error(`❌ Attempt ${retryCount + 1} failed:`, error.message);
-            
+
             // 如果还有重试次数，则重试
             if (retryCount < maxRetries) {
                 const waitSeconds = (retryCount + 1) * 2;
                 const message = `获取失败，${waitSeconds}秒后重试 (${retryCount + 1}/${maxRetries})...`;
                 console.log(`🔄 ${message}`);
                 audioEvents.emit('retry', { attempt: retryCount + 1, maxRetries, waitSeconds });
-                
+
                 await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000));
                 return this.getAudioUrl(song, retryCount + 1);
             }
-            
+
             // 所有重试都失败，降级到预览
             console.warn('⚠️ All attempts failed, using Spotify preview (30s)');
             if (song.previewUrl) {
-                return { 
-                    url: song.previewUrl, 
+                return {
+                    url: song.previewUrl,
                     isPreview: true,
                     error: `YouTube unavailable: ${error.message}`
                 };
             }
-            
-            return { 
-                url: '', 
+
+            return {
+                url: '',
                 isPreview: false,
                 error: `No audio available: ${error.message}`
             };

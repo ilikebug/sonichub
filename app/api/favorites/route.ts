@@ -1,22 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
 import { verifySession } from '@/lib/auth';
-import { FAVORITES_FILE } from '@/lib/cache';
-
-// 读取收藏列表
-async function readFavorites() {
-  try {
-    const data = await fs.readFile(FAVORITES_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-// 写入收藏列表
-async function writeFavorites(favorites: any[]) {
-  await fs.writeFile(FAVORITES_FILE, JSON.stringify(favorites, null, 2));
-}
+import { favorites as favoritesStore } from '@/lib/store';
 
 // GET - 获取收藏列表
 export async function GET(request: NextRequest) {
@@ -27,7 +11,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const favorites = await readFavorites();
+    const favorites = favoritesStore.getAll();
     return NextResponse.json({ success: true, favorites });
   } catch (error) {
     console.error('Failed to read favorites:', error);
@@ -45,20 +29,14 @@ export async function POST(request: NextRequest) {
 
   try {
     const { action, song } = await request.json();
-    const favorites = await readFavorites();
+    let currentFavorites = [];
 
     if (action === 'add') {
-      // 检查是否已存在
-      const exists = favorites.some((s: any) => s.id === song.id);
-      if (!exists) {
-        favorites.push(song);
-        await writeFavorites(favorites);
-      }
-      return NextResponse.json({ success: true, favorites });
+      currentFavorites = favoritesStore.add(song);
+      return NextResponse.json({ success: true, favorites: currentFavorites });
     } else if (action === 'remove') {
-      const newFavorites = favorites.filter((s: any) => s.id !== song.id);
-      await writeFavorites(newFavorites);
-      return NextResponse.json({ success: true, favorites: newFavorites });
+      currentFavorites = favoritesStore.remove(song.id);
+      return NextResponse.json({ success: true, favorites: currentFavorites });
     } else {
       return NextResponse.json({ success: false, message: '无效的操作' }, { status: 400 });
     }

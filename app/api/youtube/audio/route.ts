@@ -19,12 +19,12 @@ export async function GET(request: NextRequest) {
     const query = `${title} ${artist} official audio`;
 
     // 获取视频信息
-    const infoCmd = `yt-dlp "ytsearch1:${query}" --print "%(id)s|%(title)s|%(duration)s" --no-playlist --no-warnings`;
-    const { stdout: infoStr } = await execAsync(infoCmd, { 
+    const infoCmd = `yt-dlp "ytsearch1:${query}" --print "%(id)s|%(title)s|%(duration)s" --no-playlist --no-warnings --force-ipv4`;
+    const { stdout: infoStr } = await execAsync(infoCmd, {
       timeout: 10000,
       killSignal: 'SIGTERM'
     });
-    
+
     const [videoId, videoTitle, duration] = infoStr.trim().split('|');
 
     if (!videoId) {
@@ -50,16 +50,16 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('❌ yt-dlp error:', error.message);
-    
+
     // 超时或其他错误
     if (error.killed || error.signal === 'SIGTERM') {
       return NextResponse.json({ error: 'Request timeout' }, { status: 408 });
     }
-    
+
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch YouTube audio',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     );

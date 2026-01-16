@@ -49,15 +49,15 @@ export async function GET(request: NextRequest) {
         {
           name: 'Android Audio Only',
           // 140 is m4a. Strictly avoid 18 (mp4 video)
-          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=android" -f "140/bestaudio[ext=m4a]/bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`)
+          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=android" -f "140/bestaudio[ext=m4a]/bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings --force-ipv4`)
         },
         {
           name: 'iOS (fallback)',
-          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=ios" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`)
+          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" --extractor-args "youtube:player_client=ios" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings --force-ipv4`)
         },
         {
           name: 'Web (last resort)',
-          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings`)
+          cmd: buildYtDlpCommand(`"https://www.youtube.com/watch?v=${videoId}" -f "bestaudio" -o "${outputTemplate}" --no-playlist --no-warnings --force-ipv4`)
         }
       ];
 

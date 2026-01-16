@@ -34,6 +34,8 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<ViewType>("explore"); // Default to Explore
   const [query, setQuery] = useState("");
   const [isLocked, setIsLocked] = useState(true); // 默认锁定
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true); // 正在检查权限
+  const [passwordRequired, setPasswordRequired] = useState(true); // 是否需要密码
 
   // Content State
   const [songs, setSongs] = useState<Song[]>([]);
@@ -152,6 +154,8 @@ export default function Home() {
     // Electron 环境中自动解锁，不需要密码
     if (isElectron) {
       setIsLocked(false);
+      setPasswordRequired(false);
+      setIsCheckingAuth(false);
       // 加载数据（不需要 token）
       loadFavorites().then((favorites) => setLikedSongs(favorites));
       loadDownloads().then((downloads) => setDownloadedSongs(downloads));
@@ -161,6 +165,20 @@ export default function Home() {
     // Web 环境：检查会话解锁状态和 token 有效性
     const checkAuthAndLoadData = async () => {
       try {
+        // 先检查服务器是否配置了密码
+        const statusRes = await fetch('/api/auth/status');
+        const statusData = await statusRes.json();
+        
+        setPasswordRequired(statusData.required);
+        
+        if (!statusData.required) {
+          // 不需要密码，直接解锁并加载数据
+          setIsLocked(false);
+          loadFavorites().then((favorites) => setLikedSongs(favorites));
+          loadDownloads().then((downloads) => setDownloadedSongs(downloads));
+          return; // 这里直接返回，finally 会处理 isCheckingAuth
+        }
+
         const sessionUnlocked = sessionStorage.getItem(LOCK_SESSION_KEY);
         const token = sessionStorage.getItem("auth_token");
         
@@ -199,7 +217,10 @@ export default function Home() {
         }
       } catch (error) {
         console.error("Failed to check auth:", error);
+        // 默认锁定以确保安全
         setIsLocked(true);
+      } finally {
+        setIsCheckingAuth(false);
       }
     };
     
@@ -790,6 +811,12 @@ export default function Home() {
       return;
     }
     
+    // 如果没有配置密码，也不能锁定
+    if (!passwordRequired) {
+      setToastMessage("未配置访问密码，无法锁定");
+      return;
+    }
+    
     setIsLocked(true);
     // 清除会话解锁状态和 token
     sessionStorage.removeItem(LOCK_SESSION_KEY);
@@ -820,16 +847,20 @@ export default function Home() {
   };
 
   // 在客户端挂载前显示加载状态
-  if (!mounted) {
+  // 在客户端挂载前显示加载状态
+  if (!mounted || isCheckingAuth) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-gradient-to-br from-[#09090b] to-[#111115]">
-        <div className="text-white">Loading...</div>
+        <div className="text-white flex flex-col items-center gap-4">
+          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin"></div>
+          <div className="text-sm text-gray-400">Loading...</div>
+        </div>
       </div>
     );
   }
 
-  // 显示锁屏
-  if (isLocked) {
+  // 显示锁屏 (仅当确实需要密码且被锁定时)
+  if (isLocked && passwordRequired) {
     return <LockScreen onUnlock={handleUnlock} />;
   }
 
@@ -910,13 +941,15 @@ export default function Home() {
             >
               <Icons.Music size={20} />
             </button>
-            <button
-              onClick={handleLock}
-              className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-              title="锁定应用"
-            >
-              <Icons.Lock size={20} />
-            </button>
+            {passwordRequired && (
+              <button
+                onClick={handleLock}
+                className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                title="锁定应用"
+              >
+                <Icons.Lock size={20} />
+              </button>
+            )}
             <ThemeToggle />
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-gray-200 dark:bg-white/5 rounded-full border border-gray-300 dark:border-white/10">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>

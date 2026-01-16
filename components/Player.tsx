@@ -177,6 +177,13 @@ export const Player: React.FC<PlayerProps> = ({
   useEffect(() => {
     if (!mounted) return;
 
+    // 无论如何，一旦歌曲改变，立即停止当前播放
+    if (audioRef.current) {
+      audioRef.current.pause();
+      // 这里不直接设置 src 为空，因为可能会导致某些浏览器的警告，
+      // 但我们需要确保它不再消耗资源或发出声音
+    }
+
     // 如果没有歌曲，重置所有状态
     if (!currentSong) {
       setActualAudioUrl("");
@@ -191,6 +198,9 @@ export const Player: React.FC<PlayerProps> = ({
       setRetryStatus("");
       return;
     }
+
+    // 用于取消异步操作
+    let isCancelled = false;
 
     if (currentSong && !currentSong.audioUrl) {
       setIsLoadingAudio(true);
@@ -208,6 +218,8 @@ export const Player: React.FC<PlayerProps> = ({
       spotifyService
         .getAudioUrl(currentSong)
         .then((result) => {
+          if (isCancelled) return;
+
           setActualAudioUrl(result.url);
           setIsLoadingAudio(false);
           setIsPreviewMode(result.isPreview);
@@ -220,6 +232,8 @@ export const Player: React.FC<PlayerProps> = ({
           }
         })
         .catch((error) => {
+          if (isCancelled) return;
+
           console.error("Failed to get audio URL:", error);
           setIsLoadingAudio(false);
           setLoadError("加载失败");
@@ -245,6 +259,10 @@ export const Player: React.FC<PlayerProps> = ({
       setDuration(0);
       setProgress(0);
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [currentSong, mounted]);
 
   // 当音频 URL 准备好后，加载音频
