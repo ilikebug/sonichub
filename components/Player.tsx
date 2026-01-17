@@ -23,13 +23,13 @@ async function checkFavorite(songId: string): Promise<boolean> {
   if (typeof window === "undefined") return false;
   try {
     const token = sessionStorage.getItem("auth_token");
-    if (!token) return false;
+    
+    const headers: HeadersInit = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
-    const response = await fetch("/api/favorites", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const response = await fetch("/api/favorites", { headers });
 
     if (response.status === 401) {
       // Token 过期
@@ -55,19 +55,19 @@ async function toggleFavorite(
   if (typeof window === "undefined") return false;
   try {
     const token = sessionStorage.getItem("auth_token");
-    if (!token) {
-      console.warn("No auth token, cannot toggle favorite");
-      return false;
-    }
 
     const action = currentIsFavorite ? "remove" : "add";
 
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const response = await fetch("/api/favorites", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify({ action, song }),
     });
 
