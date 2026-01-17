@@ -164,9 +164,9 @@ class SpotifyService {
     }
 
     /**
-     * Get YouTube audio URL for a song (完整版，带缓存检查和重试)
+     * Get YouTube audio URL for a song (完整版，带缓存检查、重试和智能回退)
      */
-    async getAudioUrl(song: Song, retryCount: number = 0): Promise<{ url: string, isPreview: boolean, error?: string }> {
+    async getAudioUrl(song: Song, retryCount: number = 0): Promise<{ url: string, isPreview: boolean, error?: string, useDownloadMode?: boolean, videoId?: string }> {
         const maxRetries = 5; // 最多重试5次
 
         try {
@@ -212,9 +212,14 @@ class SpotifyService {
             }
 
             const data = await response.json();
-            if (data.audioUrl) {
-                console.log('✅ Got full audio from YouTube');
-                return { url: data.audioUrl, isPreview: false };
+            if (data.audioUrl && data.videoId) {
+                console.log('✅ Got audio URL from YouTube');
+                // 返回流式URL和videoId，以便后续可能需要切换到下载模式
+                return {
+                    url: data.audioUrl,
+                    isPreview: false,
+                    videoId: data.videoId
+                };
             }
 
             throw new Error('No audio URL in response');
@@ -249,6 +254,100 @@ class SpotifyService {
                 error: `No audio available: ${error.message}`
             };
         }
+    }
+
+    /**
+     * 下载模式：确保文件完整下载后再返回URL
+     * 用于流式播放失败时的回退方案
+     */
+    async downloadAndGetUrl(videoId: string, songTitle: string): Promise<{ url: string, error?: string }> {
+        try {
+            console.log(`📥 Starting download mode for ${videoId}...`);
+            audioEvents.emit('downloadStart', { videoId, title: songTitle });
+
+            // 开始下载
+            const response = await fetch('/api/youtube/download-and-serve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoId, action: 'start' })
+            });
+
+            if (!response.ok) {
+                throw new Error('Download initiation failed');
+            }
+
+            const result = await response.json();
+
+            if (result.status === 'completed' && result.audioUrl) {
+                console.log('✅ Download completed, ready to play');
+                audioEvents.emit('downloadComplete', { videoId, url: result.audioUrl });
+                return { url: result.audioUrl };
+            }
+
+            if (result.status === 'failed') {
+                throw new Error(result.details || 'Download failed');
+            }
+
+            // 如果状态是 downloading，需要轮询
+            if (result.status === 'downloading' || result.status === 'not_started') {
+                console.log('⏳ Download in progress, polling...');
+                return await this.pollDownloadProgress(videoId, songTitle);
+            }
+
+            throw new Error('Unexpected download status');
+
+        } catch (error: any) {
+            console.error('❌ Download mode failed:', error.message);
+            audioEvents.emit('downloadError', { videoId, error: error.message });
+            return {
+                url: '',
+                error: `Download failed: ${error.message}`
+            };
+        }
+    }
+
+    /**
+     * 轮询下载进度
+     */
+    private async pollDownloadProgress(videoId: string, songTitle: string, maxAttempts: number = 30): Promise<{ url: string, error?: string }> {
+        for (let i = 0; i < maxAttempts; i++) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // 每2秒检查一次
+
+            try {
+                const response = await fetch('/api/youtube/download-and-serve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videoId, action: 'check' })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+
+                    if (result.status === 'completed' && result.audioUrl) {
+                        console.log('✅ Download completed');
+                        audioEvents.emit('downloadComplete', { videoId, url: result.audioUrl });
+                        return { url: result.audioUrl };
+                    }
+
+                    if (result.status === 'failed') {
+                        throw new Error(result.details || 'Download failed');
+                    }
+
+                    // 继续轮询
+                    console.log(`⏳ Download progress check ${i + 1}/${maxAttempts}...`);
+                    audioEvents.emit('downloadProgress', {
+                        videoId,
+                        progress: result.progress || ((i + 1) / maxAttempts * 100),
+                        title: songTitle
+                    });
+                }
+            } catch (error: any) {
+                console.error('❌ Progress check failed:', error.message);
+            }
+        }
+
+        // 超时
+        throw new Error('Download timeout');
     }
 }
 

@@ -122,6 +122,9 @@ export const Player: React.FC<PlayerProps> = ({
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [isDraggingVolume, setIsDraggingVolume] = useState(false);
   const [showVisualizer, setShowVisualizer] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [currentVideoId, setCurrentVideoId] = useState<string>("");
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -167,9 +170,45 @@ export const Player: React.FC<PlayerProps> = ({
       setRetryStatus(`重试中 (${data.attempt}/${data.maxRetries})，请稍候...`);
     };
 
+    const handleDownloadStart = (data: { videoId: string; title: string }) => {
+      console.log('📥 Download started:', data);
+      setIsDownloading(true);
+      setDownloadProgress(0);
+      setRetryStatus("正在下载音频...");
+    };
+
+    const handleDownloadProgress = (data: { videoId: string; progress: number; title: string }) => {
+      console.log('⏳ Download progress:', data.progress + '%');
+      setDownloadProgress(data.progress);
+      setRetryStatus(`下载中 ${Math.round(data.progress)}%...`);
+    };
+
+    const handleDownloadComplete = (data: { videoId: string; url: string }) => {
+      console.log('✅ Download completed:', data);
+      setIsDownloading(false);
+      setDownloadProgress(100);
+      setRetryStatus("");
+    };
+
+    const handleDownloadError = (data: { videoId: string; error: string }) => {
+      console.error('❌ Download error:', data);
+      setIsDownloading(false);
+      setLoadError("下载失败: " + data.error);
+      setRetryStatus("");
+    };
+
     audioEvents.on("retry", handleRetry);
+    audioEvents.on("downloadStart", handleDownloadStart);
+    audioEvents.on("downloadProgress", handleDownloadProgress);
+    audioEvents.on("downloadComplete", handleDownloadComplete);
+    audioEvents.on("downloadError", handleDownloadError);
+
     return () => {
       audioEvents.off("retry", handleRetry);
+      audioEvents.off("downloadStart", handleDownloadStart);
+      audioEvents.off("downloadProgress", handleDownloadProgress);
+      audioEvents.off("downloadComplete", handleDownloadComplete);
+      audioEvents.off("downloadError", handleDownloadError);
     };
   }, []);
 
@@ -224,6 +263,11 @@ export const Player: React.FC<PlayerProps> = ({
           setIsLoadingAudio(false);
           setIsPreviewMode(result.isPreview);
           setRetryStatus("");
+          
+          // 保存 videoId 以便后续可能的下载模式回退
+          if (result.videoId) {
+            setCurrentVideoId(result.videoId);
+          }
 
           if (result.error) {
             setLoadError(result.error);
@@ -441,26 +485,42 @@ export const Player: React.FC<PlayerProps> = ({
   return (
     <div className="relative">
       {/* 状态提示条 - 在播放器上方 */}
-      {(isLoadingAudio || isBuffering || isPreviewMode || loadError) && (
+      {(isLoadingAudio || isBuffering || isDownloading || isPreviewMode || loadError) && (
         <div className="h-8 bg-gradient-to-r from-gray-100 to-white dark:from-[#09090b] dark:to-[#111115] border-t border-gray-200 dark:border-white/5 flex items-center justify-center px-4">
           {/* 获取音频URL */}
-          {isLoadingAudio && !isBuffering && (
+          {isLoadingAudio && !isBuffering && !isDownloading && (
             <div className="text-xs text-blue-400 flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
               <span>{retryStatus || "正在获取音频链接..."}</span>
             </div>
           )}
 
+          {/* 下载模式 */}
+          {isDownloading && (
+            <div className="text-xs text-purple-400 flex items-center gap-2">
+              <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+              <span>{retryStatus || `下载中 ${Math.round(downloadProgress)}%...`}</span>
+              {downloadProgress > 0 && (
+                <div className="w-20 h-1 bg-gray-700 rounded-full overflow-hidden ml-2">
+                  <div 
+                    className="h-full bg-purple-400 transition-all duration-300"
+                    style={{ width: `${downloadProgress}%` }}
+                  ></div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 下载/缓冲提示 */}
-          {!isLoadingAudio && isBuffering && (
+          {!isLoadingAudio && isBuffering && !isDownloading && (
             <div className="text-xs text-cyan-400 flex items-center gap-2">
               <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-              <span>正在下载音频，请稍候...</span>
+              <span>正在缓冲音频...</span>
             </div>
           )}
 
           {/* 预览模式提示 */}
-          {!isLoadingAudio && !isBuffering && isPreviewMode && (
+          {!isLoadingAudio && !isBuffering && !isDownloading && isPreviewMode && (
             <div className="text-xs text-yellow-400 flex items-center gap-2">
               <span>⚠️</span>
               <span>YouTube 不可用，播放 30 秒预览</span>
@@ -468,7 +528,7 @@ export const Player: React.FC<PlayerProps> = ({
           )}
 
           {/* 错误提示 */}
-          {!isLoadingAudio && !isBuffering && loadError && !isPreviewMode && (
+          {!isLoadingAudio && !isBuffering && !isDownloading && loadError && !isPreviewMode && (
             <div className="text-xs text-red-400 truncate">{loadError}</div>
           )}
         </div>
@@ -511,9 +571,78 @@ export const Player: React.FC<PlayerProps> = ({
               setIsBuffering(false);
             }}
             onError={(e: any) => {
-              console.error("❌ Audio error:", e.target?.error);
+              const error = e.target?.error;
+              console.error("❌ Audio error:", error);
+              console.log("Debug - currentVideoId:", currentVideoId);
+              console.log("Debug - isDownloading:", isDownloading);
+              console.log("Debug - isPreviewMode:", isPreviewMode);
+              console.log("Debug - actualAudioUrl:", actualAudioUrl);
               setIsBuffering(false);
-              setLoadError("音频加载失败");
+              
+              // 只在特定的媒体错误时才尝试下载模式
+              // MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED (4) 或 MEDIA_ERR_DECODE (3)
+              const shouldTryDownload = error && (error.code === 3 || error.code === 4);
+              
+              // 尝试从URL中提取videoId作为备用
+              let videoIdToUse = currentVideoId;
+              if (!videoIdToUse && actualAudioUrl) {
+                const match = actualAudioUrl.match(/videoId=([^&]+)/);
+                if (match) {
+                  videoIdToUse = match[1];
+                  console.log("✅ Extracted videoId from URL:", videoIdToUse);
+                }
+              }
+              
+              // 智能回退：如果是不支持的格式且有 videoId，尝试下载模式
+              if (shouldTryDownload && videoIdToUse && !isDownloading && !isPreviewMode) {
+                console.log("🔄 Stream format not supported, trying download mode...");
+                setLoadError("");
+                setRetryStatus("流式播放失败，切换到下载模式...");
+                
+                // 使用非阻塞方式调用下载
+                spotifyService.downloadAndGetUrl(
+                  videoIdToUse,
+                  currentSong?.title || "Unknown"
+                ).then(downloadResult => {
+                  if (downloadResult.url) {
+                    console.log("✅ Download mode successful, switching URL...");
+                    // 添加时间戳强制audio元素重新加载
+                    const urlWithTimestamp = `${downloadResult.url}&t=${Date.now()}`;
+                    setActualAudioUrl(urlWithTimestamp);
+                    setShouldAutoPlay(true); // 强制自动播放
+                    setLoadError("");
+                    setRetryStatus("");
+                  } else {
+                    throw new Error(downloadResult.error || "Download failed");
+                  }
+                }).catch(downloadError => {
+                  console.error("❌ Download mode also failed:", downloadError);
+                  setLoadError("下载模式也失败了");
+                  setRetryStatus("");
+                  
+                  // 最后的回退：使用预览
+                  if (
+                    currentSong?.previewUrl &&
+                    actualAudioUrl !== currentSong.previewUrl
+                  ) {
+                    setActualAudioUrl(currentSong.previewUrl);
+                    setIsPreviewMode(true);
+                    setLoadError("使用 30秒预览");
+                  } else {
+                    setLoadError("音频播放失败，该歌曲暂时无法播放");
+                  }
+                });
+              } else {
+                // 其他类型的错误或无法使用下载模式
+                console.log("Audio error code:", error?.code, "message:", error?.message);
+                if (!shouldTryDownload) {
+                  console.log("⚠️ Error code not eligible for download mode");
+                }
+                if (!videoIdToUse) {
+                  console.log("⚠️ No videoId available for download mode");
+                }
+                setLoadError("音频加载失败");
+              }
             }}
             onEnded={() => {
               onNext();
