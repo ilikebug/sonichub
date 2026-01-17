@@ -9,6 +9,65 @@ import { AUDIO_CACHE_DIR } from '@/lib/cache';
 
 const CACHE_DIR = AUDIO_CACHE_DIR;
 
+// 辅助函数：尝试启动流
+async function startAudioStream(videoId: string, ytdlpPath: string, strategy: any) {
+  return new Promise<{ child: any, streamProxy: any, fileWriter: any, tempFilePath: string }>((resolve, reject) => {
+    const targetExt = 'm4a'; // 默认扩展名
+    const tempFilePath = path.join(CACHE_DIR, `${videoId}.temp.${Date.now()}.${targetExt}`);
+
+    console.log(`🚀 Starting stream for ${videoId} using strategy: ${strategy.name}`);
+    const child = spawn(ytdlpPath, strategy.args);
+
+    const streamProxy = new PassThrough();
+    const fileWriter = fs.createWriteStream(tempFilePath);
+    let hasData = false;
+    let hasError = false;
+
+    // 监听数据，一旦有数据就认为启动成功
+    child.stdout.once('data', (chunk) => {
+      hasData = true;
+      // 把这第一块数据写回去，防止丢失
+      streamProxy.write(chunk);
+      fileWriter.write(chunk);
+
+      // 管道连接后续数据
+      child.stdout.pipe(streamProxy);
+      child.stdout.pipe(fileWriter);
+
+      resolve({ child, streamProxy, fileWriter, tempFilePath });
+    });
+
+    child.on('error', (err) => {
+      hasError = true;
+      reject(err);
+    });
+
+    child.on('close', (code) => {
+      if (!hasData || code !== 0) {
+        if (!hasData) {
+          // 如果还没收到数据就关闭了，说明失败
+          hasError = true;
+          fs.unlink(tempFilePath, () => { });
+          reject(new Error(`Process exited with code ${code} before sending data`));
+        }
+      }
+    });
+
+    // 监听 stderr 以捕获早期错误
+    child.stderr.on('data', (data) => {
+      const msg = data.toString();
+      // 如果遇到 403 Forbidden，立即拒绝
+      if (msg.includes('HTTP Error 403') || msg.includes('Sign in to confirm your age')) {
+        hasError = true;
+        // 杀掉进程
+        child.kill();
+        reject(new Error(msg));
+      }
+    });
+
+  });
+}
+
 // 音频流端点 - 优先流式播放，同时下载到缓存
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -44,91 +103,81 @@ export async function GET(request: NextRequest) {
       return serveAudioFile(cachedFile, request);
     }
 
-    // 2. 缓存不存在，启动流式下载
-    // 我们强制使用 m4a/aac 格式，因为它对流式传输支持较好，且兼容性高
+    // 2. 缓存不存在，启动流式下载 (多策略重试)
     const ytdlpPath = getYtDlpPath();
-    const targetExt = 'm4a';
-    const finalFilePath = path.join(CACHE_DIR, `${videoId}.${targetExt}`);
-    const tempFilePath = path.join(CACHE_DIR, `${videoId}.temp.${targetExt}`);
+    const finalFilePath = path.join(CACHE_DIR, `${videoId}.m4a`); // 最终我们总是尝试存为 m4a
 
-    // 清理可能存在的旧临时文件
-    if (fs.existsSync(tempFilePath)) {
-      try {
-        fs.unlinkSync(tempFilePath);
-      } catch (e) { /* ignore */ }
-    }
-
-    // 构建 yt-dlp 参数 - 输出到 stdout (-)
-    // 构建 yt-dlp 参数 - 输出到 stdout (-)
-    const args = [
-      `https://www.youtube.com/watch?v=${videoId}`,
-      '-f', 'bestaudio[ext=m4a]/bestaudio', // 优先 m4a，如果没有则使用最佳音频
-      '-o', '-', // 输出到标准输出
-      '--no-playlist',
-      '--no-warnings',
-      '--force-ipv4'
+    // 定义策略
+    const strategies = [
+      {
+        name: 'Android Client',
+        args: [
+          `https://www.youtube.com/watch?v=${videoId}`,
+          '--extractor-args', 'youtube:player_client=android',
+          '-f', '140/bestaudio[ext=m4a]/bestaudio', // 恢复 140 格式
+          '-o', '-',
+          '--no-playlist', '--no-warnings', '--force-ipv4'
+        ]
+      },
+      {
+        name: 'iOS Client',
+        args: [
+          `https://www.youtube.com/watch?v=${videoId}`,
+          '--extractor-args', 'youtube:player_client=ios',
+          '-f', 'bestaudio', // iOS 策略通常使用 bestaudio
+          '-o', '-',
+          '--no-playlist', '--no-warnings', '--force-ipv4'
+        ]
+      },
+      {
+        name: 'Web Client',
+        args: [
+          `https://www.youtube.com/watch?v=${videoId}`,
+          // Web 客户端不需要特定的 extractor-args，或者使用 default
+          '-f', 'bestaudio',
+          '-o', '-',
+          '--no-playlist', '--no-warnings', '--force-ipv4'
+        ]
+      }
     ];
 
-    console.log(`🚀 Starting stream for ${videoId}`);
-    const child = spawn(ytdlpPath, args);
+    let streamResult = null;
+    let lastError = null;
 
-    // 创建流转换
-    // PassThrough用于分流：一路去 HTTP 响应，一路去文件
-    const streamProxy = new PassThrough();
-    const fileWriter = fs.createWriteStream(tempFilePath);
-
-    // 错误处理标记
-    let hasError = false;
-
-    // 监听子进程错误
-    child.on('error', (err) => {
-      console.error('❌ Spawn error:', err);
-      hasError = true;
-      streamProxy.end(); // 结束流
-      fileWriter.end();
-      // 删除临时文件
-      fs.unlink(tempFilePath, () => { });
-    });
-
-    child.stderr.on('data', (data) => {
-      const msg = data.toString();
-      // 只记录错误，忽略进度条等
-      if (msg.includes('ERROR:')) {
-        console.error('yt-dlp stderr:', msg);
+    for (const strategy of strategies) {
+      try {
+        streamResult = await startAudioStream(videoId, ytdlpPath, strategy);
+        break; // 成功则跳出
+      } catch (err: any) {
+        console.error(`❌ Strategy ${strategy.name} failed:`, err.message);
+        lastError = err;
       }
-    });
+    }
 
-    // 监听子进程关闭
-    child.on('close', async (code) => {
-      if (code !== 0) {
-        console.error(`yt-dlp exited with code ${code}`);
-        hasError = true;
-        // 如果失败，清理
-        fs.unlink(tempFilePath, () => { });
+    if (!streamResult) {
+      throw new Error(`All strategies failed. Last error: ${lastError?.message}`);
+    }
+
+    const { child, streamProxy, fileWriter, tempFilePath } = streamResult;
+
+    // 继续监听关闭事件以处理文件重命名
+    child.on('close', (code: number) => {
+      if (code === 0) {
+        console.log(`✅ Stream download complete for ${videoId}`);
+        fileWriter.end(() => {
+          // 只有成功才重命名覆盖
+          fs.rename(tempFilePath, finalFilePath, () => { });
+        });
       } else {
-        // 成功，重命名临时文件为正式文件
-        if (!hasError) {
-          console.log(`✅ Stream download complete for ${videoId}`);
-          fileWriter.end(() => {
-            fs.rename(tempFilePath, finalFilePath, () => { });
-          });
-        }
+        console.error(`Stream interrupted with code ${code}`);
+        fileWriter.end();
+        fs.unlink(tempFilePath, () => { });
       }
-      // 确保流结束（虽然 pipe 应该会自动处理，但以防万一）
-      if (!streamProxy.writableEnded) {
-        streamProxy.end();
-      }
+      if (!streamProxy.writableEnded) streamProxy.end();
     });
-
-    // 管道连接
-    // child.stdout -> streamProxy (Response)
-    // child.stdout -> fileWriter (Cache)
-    child.stdout.pipe(streamProxy);
-    child.stdout.pipe(fileWriter);
 
     // 将 Node Stream 转换为 Web ReadableStream 以供 NextResponse 使用
-    // Node.js v16.5+ 支持 Readable.toWeb，Next.js 环境通常支持
-    // @ts-ignore - 类型定义可能不匹配但运行时支持
+    // @ts-ignore
     const webStream = Readable.toWeb(streamProxy);
 
     return new NextResponse(webStream as any, {
